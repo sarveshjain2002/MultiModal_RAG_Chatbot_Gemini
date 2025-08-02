@@ -353,7 +353,6 @@ def configure_google_ai():
     except Exception as e:
         error_msg = f"Google AI configuration error: {str(e)}"
         print(error_msg)
-        st.error(f"❌ {error_msg}")
         return None, False, error_msg
 
 # Configure Google AI on startup
@@ -496,7 +495,7 @@ class ModernMultiModalPlatform:
             'authenticated': False,
             'username': '',
             'current_page': 'csv',
-            # Perfect continuous chat histories
+            # Perfect continuous chat histories for all three modules
             'csv_messages': [],
             'document_messages': [],
             'image_messages': [],
@@ -506,7 +505,7 @@ class ModernMultiModalPlatform:
             'csv_data': None,
             'csv_file_name': '',
             'csv_processing_info': '',
-            'db_name': 'analytics_db',
+            'db_name': os.path.join(os.getcwd(), 'analytics_db'),  # Fix database path
             'table_name': 'data_table',
             'csv_columns': [],
             'dynamic_examples': []
@@ -556,14 +555,6 @@ class ModernMultiModalPlatform:
             background: #000000 !important;
         }
         
-        [data-testid="stAppViewContainer"] > .main {
-            background: #000000 !important;
-        }
-        
-        [data-testid="stHeader"] {
-            background: #000000 !important;
-        }
-        
         /* Hide Streamlit Elements */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
@@ -581,17 +572,6 @@ class ModernMultiModalPlatform:
             border: 2px solid #333333;
             position: relative;
             overflow: hidden;
-        }
-        
-        .modern-header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: radial-gradient(circle at 30% 50%, rgba(79, 70, 229, 0.1) 0%, transparent 50%);
-            pointer-events: none;
         }
         
         .modern-header h1 {
@@ -643,14 +623,6 @@ class ModernMultiModalPlatform:
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
         }
         
-        .stChatMessage[data-testid="user-message"] {
-            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%) !important;
-        }
-        
-        .stChatMessage[data-testid="assistant-message"] {
-            background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
-        }
-        
         /* Form Styling */
         .stTextInput > div > div > input {
             background-color: #1a1a1a !important;
@@ -658,14 +630,6 @@ class ModernMultiModalPlatform:
             border: 2px solid #333333 !important;
             border-radius: 1rem !important;
             padding: 1rem !important;
-            font-size: 1rem !important;
-            transition: all 0.3s ease !important;
-        }
-        
-        .stTextInput > div > div > input:focus {
-            border-color: var(--accent-color) !important;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2) !important;
-            outline: none !important;
         }
         
         /* File Uploader */
@@ -675,13 +639,6 @@ class ModernMultiModalPlatform:
             border: 2px dashed #444444 !important;
             border-radius: 1rem !important;
             padding: 2rem !important;
-            text-align: center !important;
-            transition: all 0.3s ease !important;
-        }
-        
-        .stFileUploader > div:hover {
-            border-color: var(--accent-color) !important;
-            background-color: rgba(79, 70, 229, 0.05) !important;
         }
         
         /* Data Tables */
@@ -689,8 +646,6 @@ class ModernMultiModalPlatform:
             background: #1a1a1a !important;
             border: 2px solid #333333 !important;
             border-radius: 1rem !important;
-            overflow: hidden !important;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
         }
         
         .stDataFrame table {
@@ -698,95 +653,27 @@ class ModernMultiModalPlatform:
             color: #ffffff !important;
         }
         
-        .stDataFrame th {
-            background-color: #2a2a2a !important;
-            color: #ffffff !important;
-            border-color: #444444 !important;
-            font-weight: 600 !important;
-        }
-        
-        .stDataFrame td {
-            background-color: #1a1a1a !important;
-            color: #ffffff !important;
-            border-color: #333333 !important;
-        }
-        
         /* Success/Error Messages */
         .stSuccess {
             background: var(--success-gradient) !important;
             color: #ffffff !important;
-            border: 2px solid #22c55e !important;
             border-radius: 1rem !important;
         }
         
         .stError {
             background: var(--error-gradient) !important;
             color: #ffffff !important;
-            border: 2px solid #ef4444 !important;
             border-radius: 1rem !important;
         }
         
-        .stInfo {
-            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%) !important;
+        /* Text Elements */
+        h1, h2, h3, h4, h5, h6 {
             color: #ffffff !important;
-            border: 2px solid #3b82f6 !important;
-            border-radius: 1rem !important;
+            font-family: 'Poppins', sans-serif !important;
         }
         
-        /* Tabs */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 0.5rem;
-            background: transparent;
-            padding: 0.5rem;
-            border-radius: 1rem;
-            background: rgba(26, 26, 26, 0.5);
-        }
-        
-        .stTabs [data-baseweb="tab"] {
-            background: linear-gradient(135deg, #333333 0%, #1a1a1a 100%) !important;
+        p, div, span, li {
             color: #ffffff !important;
-            border-radius: 1rem !important;
-            padding: 1rem 2rem !important;
-            font-weight: 600 !important;
-            border: 2px solid #444444 !important;
-            transition: all 0.3s ease !important;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-        }
-        
-        .stTabs [data-baseweb="tab"]:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
-            border-color: #666666 !important;
-        }
-        
-        .stTabs [aria-selected="true"] {
-            background: linear-gradient(135deg, var(--accent-color) 0%, #3730a3 100%) !important;
-            border-color: var(--accent-color) !important;
-            transform: scale(1.05) !important;
-        }
-        
-        /* Metrics */
-        .stMetric {
-            background: linear-gradient(135deg, #1a1a1a 0%, #111111 100%) !important;
-            border: 2px solid #333333 !important;
-            border-radius: 1rem !important;
-            padding: 1.5rem !important;
-            text-align: center !important;
-            transition: all 0.3s ease !important;
-        }
-        
-        .stMetric:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
-            border-color: #555555;
-        }
-        
-        /* Expanders */
-        .stExpander {
-            background: #1a1a1a !important;
-            border: 2px solid #333333 !important;
-            border-radius: 1rem !important;
-            overflow: hidden !important;
         }
         
         /* CSV Processing Info Box */
@@ -799,16 +686,6 @@ class ModernMultiModalPlatform:
             font-family: 'Consolas', monospace;
             font-size: 0.9rem;
             white-space: pre-line;
-        }
-        
-        /* Text Elements */
-        h1, h2, h3, h4, h5, h6 {
-            color: #ffffff !important;
-            font-family: 'Poppins', sans-serif !important;
-        }
-        
-        p, div, span, li {
-            color: #ffffff !important;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -897,7 +774,7 @@ class ModernMultiModalPlatform:
         st.markdown(f"""
         <div class="modern-header">
             <h1>👋 Welcome, {user_info.get('full_name', st.session_state.username)}</h1>
-            <p>Elite MultiModal AI Dashboard • Perfect CSV Analytics & Intelligence</p>
+            <p>Elite MultiModal AI Dashboard • Perfect CSV, Document & Image Analytics</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -920,10 +797,7 @@ class ModernMultiModalPlatform:
                 st.rerun()
         
         with col4:
-            col_spacer, col_profile, col_logout = st.columns([2, 1, 1])
-            with col_profile:
-                if st.button("👤 Profile", use_container_width=True):
-                    self.show_user_profile(user_info)
+            col_spacer, col_logout = st.columns([3, 1])
             with col_logout:
                 if st.button("🚪 Logout", use_container_width=True):
                     self.logout_user()
@@ -938,22 +812,6 @@ class ModernMultiModalPlatform:
         elif st.session_state.current_page == 'images':
             self.render_images_page()
 
-    def show_user_profile(self, user_info):
-        """Show user profile information"""
-        with st.expander("👤 User Profile", expanded=True):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write(f"**Name:** {user_info.get('full_name', 'N/A')}")
-                st.write(f"**Username:** {user_info.get('username', st.session_state.username)}")
-                st.write(f"**Email:** {user_info.get('email', 'N/A')}")
-            
-            with col2:
-                st.write(f"**Login Count:** {user_info.get('login_count', 0)}")
-                st.write(f"**CSV Queries:** {user_info.get('csv_queries', 0)}")
-                st.write(f"**Document Queries:** {user_info.get('document_queries', 0)}")
-                st.write(f"**Image Queries:** {user_info.get('image_queries', 0)}")
-
     def generate_perfect_dynamic_examples(self, df: pd.DataFrame) -> List[str]:
         """Generate comprehensive dynamic examples based on CSV structure and content"""
         if df is None or df.empty:
@@ -962,7 +820,6 @@ class ModernMultiModalPlatform:
         columns = df.columns.tolist()
         numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
         categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
-        datetime_columns = df.select_dtypes(include=['datetime64']).columns.tolist()
         
         examples = [
             "Show me the first 10 rows of data",
@@ -974,68 +831,21 @@ class ModernMultiModalPlatform:
             "Find all duplicate rows if any"
         ]
         
-        # Numeric column examples
+        # Add column-specific examples
         if numeric_columns:
             examples.extend([
-                f"What is the average, min, and max of {numeric_columns[0]}?",
+                f"What is the average of {numeric_columns[0]}?",
                 f"Show me the distribution of {numeric_columns[0]}",
                 f"Find outliers in {numeric_columns[0]} column"
             ])
-            
-            if len(numeric_columns) > 1:
-                examples.extend([
-                    f"Compare {numeric_columns[0]} and {numeric_columns[1]}",
-                    f"Show correlation between {numeric_columns[0]} and {numeric_columns[1]}",
-                    f"Create a scatter plot of {numeric_columns[0]} vs {numeric_columns[1]}"
-                ])
         
-        # Categorical column examples
         if categorical_columns:
             examples.extend([
-                f"Show all unique values in {categorical_columns[0]}",
-                f"Count how many records exist for each {categorical_columns[0]}",
-                f"Show the top 10 most frequent values in {categorical_columns[0]}"
-            ])
-            
-            if len(categorical_columns) > 1:
-                examples.extend([
-                    f"Show relationship between {categorical_columns[0]} and {categorical_columns[1]}",
-                    f"Create a crosstab of {categorical_columns[0]} by {categorical_columns[1]}"
-                ])
-        
-        # Mixed column examples
-        if numeric_columns and categorical_columns:
-            examples.extend([
-                f"Show average {numeric_columns[0]} grouped by {categorical_columns[0]}",
-                f"Find the {categorical_columns[0]} with highest {numeric_columns[0]}",
-                f"Create a chart showing {numeric_columns[0]} by {categorical_columns[0]}"
+                f"Show unique values in {categorical_columns[0]}",
+                f"Count records by {categorical_columns[0]}"
             ])
         
-        # Date/time column examples
-        if datetime_columns:
-            examples.extend([
-                f"Show data trends over time using {datetime_columns[0]}",
-                f"Group data by month/year from {datetime_columns[0]}",
-                f"Find the earliest and latest dates in {datetime_columns[0]}"
-            ])
-        
-        # Advanced analysis examples
-        if len(columns) >= 3:
-            examples.extend([
-                "Show me data quality report for all columns",
-                "Find columns with the most missing values",
-                "Identify potential data inconsistencies"
-            ])
-        
-        # Filtering and sorting examples
-        if columns:
-            examples.extend([
-                f"Filter data where {columns[0]} meets certain conditions",
-                f"Sort data by {columns[0]} in descending order",
-                f"Show top 10 and bottom 10 records by {columns[0]}"
-            ])
-        
-        return examples[:20]  # Limit to 20 examples for UI purposes
+        return examples[:15]  # Limit to 15 examples
 
     def render_csv_page(self):
         """Render enhanced CSV Analytics page with perfect CSV handling"""
@@ -1048,7 +858,7 @@ class ModernMultiModalPlatform:
             uploaded_file = st.file_uploader(
                 "📤 Upload ANY CSV file - We'll handle the rest!", 
                 type=["csv", "txt", "tsv", "dat"],
-                help="Upload any CSV file with any encoding, delimiter, or format. Our AI will automatically detect and process it perfectly."
+                help="Upload any CSV file with any encoding, delimiter, or format."
             )
         
         with col2:
@@ -1087,132 +897,301 @@ class ModernMultiModalPlatform:
                         # Enhanced metrics dashboard
                         self.display_enhanced_csv_metrics(df)
                         
-                        # Comprehensive data preview
-                        self.display_enhanced_data_preview(df)
-                        
                     else:
                         st.error("❌ Failed to process the CSV file")
-                        st.info("**Troubleshooting Tips:**")
-                        st.info("• Ensure the file is a valid CSV/text file")
-                        st.info("• Check if the file contains actual data")
-                        st.info("• Try a different encoding if you suspect encoding issues")
                         
-                        with st.expander("🔧 Processing Attempts"):
-                            st.text(processing_info)
-                            
                 except Exception as e:
                     st.error(f"❌ Critical error processing CSV: {str(e)}")
-                    st.info("Please try uploading a different file or contact support.")
 
-        # Perfect Continuous Chat Interface
+        # Perfect Continuous Chat Interface for CSV
         if st.session_state.csv_data is not None:
             st.markdown("### 💬 Intelligent Chat with Your CSV Data")
             st.markdown("*Ask anything about your data in natural language - I understand it all!*")
             
-            # Display enhanced chat history
+            # Display chat history
             for message in st.session_state.csv_messages:
                 with st.chat_message(message["role"]):
-                    # Display text content
                     st.markdown(message["content"])
                     
-                    # Display dataframe results if present
                     if message["role"] == "assistant" and "data_result" in message:
                         if message["data_result"] is not None and not message["data_result"].empty:
                             st.markdown("**📊 Query Results:**")
                             st.dataframe(message["data_result"], use_container_width=True)
                         
-                        # Display charts if present
                         if "chart" in message and message["chart"]:
                             st.plotly_chart(message["chart"], use_container_width=True)
-                        
-                        # Display additional analysis if present
-                        if "analysis" in message and message["analysis"]:
-                            st.markdown("**🔬 Additional Analysis:**")
-                            st.markdown(message["analysis"])
             
-            # Enhanced chat input
-            if prompt := st.chat_input("🔍 Ask anything about your CSV data - I can handle complex queries, analysis, and visualizations!", key="csv_chat"):
+            # Chat input
+            if prompt := st.chat_input("🔍 Ask anything about your CSV data!", key="csv_chat"):
                 # Add user message
                 st.session_state.csv_messages.append({"role": "user", "content": prompt})
                 
                 with st.chat_message("user"):
                     st.markdown(prompt)
                 
-                # Generate perfect assistant response
+                # Generate assistant response
                 with st.chat_message("assistant"):
-                    with st.spinner("🧠 AI is deeply analyzing your data and question..."):
-                        response, data_result, chart, analysis = self.process_perfect_csv_chat(prompt)
+                    with st.spinner("🧠 AI is analyzing your data..."):
+                        response, data_result, chart = self.process_perfect_csv_chat(prompt)
                         
-                        # Display response
                         st.markdown(response)
                         
-                        # Display dataframe if available
                         if data_result is not None and not data_result.empty:
                             st.markdown("**📊 Query Results:**")
                             st.dataframe(data_result, use_container_width=True)
                         
-                        # Display chart if available
                         if chart:
                             st.plotly_chart(chart, use_container_width=True)
                         
-                        # Display additional analysis
-                        if analysis:
-                            st.markdown("**🔬 Additional Analysis:**")
-                            st.markdown(analysis)
-                        
-                        # Store complete message
                         st.session_state.csv_messages.append({
                             "role": "assistant", 
                             "content": response,
                             "data_result": data_result,
-                            "chart": chart,
-                            "analysis": analysis
+                            "chart": chart
+                        })
+                        
+                        self.auth_manager.update_user_stats(st.session_state.username, "csv_queries")
+            
+            # Dynamic example questions
+            if st.session_state.dynamic_examples:
+                with st.expander("💡 Smart Example Questions", expanded=False):
+                    for example in st.session_state.dynamic_examples:
+                        if st.button(f"▶️ {example}", key=f"ex_{hash(example)}", use_container_width=True):
+                            st.session_state.csv_messages.append({"role": "user", "content": example})
+                            response, data_result, chart = self.process_perfect_csv_chat(example)
+                            st.session_state.csv_messages.append({
+                                "role": "assistant", 
+                                "content": response,
+                                "data_result": data_result,
+                                "chart": chart
+                            })
+                            st.rerun()
+
+    def render_documents_page(self):
+        """Render Document Intelligence page with PERFECT continuous chat"""
+        st.markdown("## 📄 Document Intelligence with Perfect Continuous Chat")
+        
+        if not self.models_ready:
+            st.error("❌ AI models not available. Please check your Google API key configuration.")
+            return
+        
+        # Enhanced file upload section
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            uploaded_pdfs = st.file_uploader(
+                "📄 Upload PDF Documents", 
+                type="pdf", 
+                accept_multiple_files=True, 
+                key="pdf_docs",
+                help="Upload PDF files for AI analysis"
+            )
+        
+        with col2:
+            uploaded_docs = st.file_uploader(
+                "📝 Upload Word Documents", 
+                type=["docx", "doc"], 
+                accept_multiple_files=True, 
+                key="word_docs",
+                help="Upload Word documents for AI analysis"
+            )
+        
+        with col3:
+            if st.button("🗑️ Clear Chat History", key="clear_docs", use_container_width=True):
+                st.session_state.document_messages = []
+                st.success("✅ Document chat history cleared!")
+                time.sleep(1)
+                st.rerun()
+        
+        # Process documents
+        if (uploaded_pdfs or uploaded_docs) and st.button("🔄 Process Documents", use_container_width=True):
+            with st.spinner("🧠 Processing documents with AI..."):
+                success = self.process_documents(uploaded_pdfs, uploaded_docs)
+                if success:
+                    st.success("✅ Documents processed successfully! You can now chat with them.")
+                else:
+                    st.error("❌ Error processing documents. Please try again.")
+        
+        # Show processed files
+        if st.session_state.processed_files:
+            st.markdown("### 📚 Processed Documents")
+            for i, file_info in enumerate(st.session_state.processed_files, 1):
+                st.write(f"{i}. {file_info}")
+        
+        # PERFECT CONTINUOUS CHAT INTERFACE FOR DOCUMENTS
+        if st.session_state.document_vector_store is not None:
+            st.markdown("### 💬 Intelligent Chat with Your Documents")
+            st.markdown("*Ask anything about your documents - I understand them completely!*")
+            
+            # Display chat history - EXACTLY LIKE CSV
+            for message in st.session_state.document_messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+            
+            # Chat input - EXACTLY LIKE CSV
+            if prompt := st.chat_input("🔍 Ask anything about your documents...", key="doc_chat"):
+                # Add user message to chat history
+                st.session_state.document_messages.append({"role": "user", "content": prompt})
+                
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+                
+                # Generate assistant response
+                with st.chat_message("assistant"):
+                    with st.spinner("🧠 AI is analyzing your documents..."):
+                        response = self.process_document_chat(prompt)
+                        
+                        # Display response
+                        st.markdown(response)
+                        
+                        # Store complete message in chat history
+                        st.session_state.document_messages.append({
+                            "role": "assistant", 
+                            "content": response
                         })
                         
                         # Update user stats
-                        self.auth_manager.update_user_stats(st.session_state.username, "csv_queries")
+                        self.auth_manager.update_user_stats(st.session_state.username, "document_queries")
             
-            # Perfect dynamic example questions
-            if st.session_state.dynamic_examples:
-                with st.expander("💡 Smart Example Questions (Tailored for Your Data)", expanded=False):
-                    st.markdown("*Click any question to execute it immediately*")
-                    
-                    # Organize examples in categories
-                    basic_examples = st.session_state.dynamic_examples[:7]
-                    advanced_examples = st.session_state.dynamic_examples[7:14]
-                    expert_examples = st.session_state.dynamic_examples[14:]
-                    
-                    tab1, tab2, tab3 = st.tabs(["🔍 Data Exploration", "📊 Advanced Analysis", "🎯 Expert Insights"])
-                    
-                    with tab1:
-                        for example in basic_examples:
-                            if st.button(f"▶️ {example}", key=f"basic_{hash(example)}", use_container_width=True):
-                                self.execute_example_question(example)
-                    
-                    with tab2:
-                        for example in advanced_examples:
-                            if st.button(f"🔬 {example}", key=f"adv_{hash(example)}", use_container_width=True):
-                                self.execute_example_question(example)
-                    
-                    with tab3:
-                        for example in expert_examples:
-                            if st.button(f"🎯 {example}", key=f"expert_{hash(example)}", use_container_width=True):
-                                self.execute_example_question(example)
+            # Example questions for documents
+            with st.expander("💡 Example Document Questions", expanded=False):
+                doc_examples = [
+                    "What are the main topics discussed?",
+                    "Summarize the key points from all documents",
+                    "What conclusions are mentioned?",
+                    "Who are the key people mentioned?",
+                    "Find information about specific topics",
+                    "What are the main findings?"
+                ]
+                
+                for example in doc_examples:
+                    if st.button(f"📄 {example}", key=f"doc_{hash(example)}", use_container_width=True):
+                        st.session_state.document_messages.append({"role": "user", "content": example})
+                        response = self.process_document_chat(example)
+                        st.session_state.document_messages.append({"role": "assistant", "content": response})
+                        st.rerun()
 
-    def execute_example_question(self, question: str):
-        """Execute an example question"""
-        st.session_state.csv_messages.append({"role": "user", "content": question})
-        response, data_result, chart, analysis = self.process_perfect_csv_chat(question)
-        st.session_state.csv_messages.append({
-            "role": "assistant", 
-            "content": response,
-            "data_result": data_result,
-            "chart": chart,
-            "analysis": analysis
-        })
-        self.auth_manager.update_user_stats(st.session_state.username, "csv_queries")
-        st.rerun()
+    def render_images_page(self):
+        """Render Image Intelligence page with PERFECT continuous chat"""
+        st.markdown("## 🖼️ Image Intelligence with Perfect Continuous Chat")
+        
+        if not self.models_ready:
+            st.error("❌ AI models not available. Please check your Google API key configuration.")
+            return
+        
+        # Enhanced image upload section
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            uploaded_image = st.file_uploader(
+                "🖼️ Upload Image for Analysis", 
+                type=["jpg", "jpeg", "png", "gif", "bmp", "webp"],
+                help="Upload an image for AI-powered analysis"
+            )
+        
+        with col2:
+            if st.button("🗑️ Clear Chat History", key="clear_images", use_container_width=True):
+                st.session_state.image_messages = []
+                st.success("✅ Image chat history cleared!")
+                time.sleep(1)
+                st.rerun()
+        
+        # Process image
+        if uploaded_image and st.button("🔄 Process Image", use_container_width=True):
+            try:
+                image = Image.open(uploaded_image)
+                
+                # Validate and resize large images
+                if image.size[0] > 10000 or image.size[1] > 10000:
+                    st.warning("⚠️ Large image detected. Resizing for optimal processing...")
+                    image.thumbnail((4096, 4096), Image.Resampling.LANCZOS)
+                
+                st.session_state.current_image = image
+                st.success(f"✅ Image processed successfully: {uploaded_image.name}")
+                
+                # Show image info
+                st.info(f"📏 Image dimensions: {image.size[0]} x {image.size[1]} pixels")
+                
+            except Exception as e:
+                st.error(f"❌ Error processing image: {str(e)}")
 
+        # Display current image and analysis tools
+        if st.session_state.current_image is not None:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### 🖼️ Current Image")
+                st.image(st.session_state.current_image, use_container_width=True)
+            
+            with col2:
+                st.markdown("### 🔧 Quick Actions")
+                
+                if st.button("📝 Extract Text (OCR)", use_container_width=True):
+                    with st.spinner("🔍 Extracting text..."):
+                        response = self.analyze_image_perfect("Extract all text visible in this image with high accuracy.")
+                        st.session_state.image_messages.append({"role": "assistant", "content": response})
+                        st.rerun()
+                
+                if st.button("🔍 Comprehensive Analysis", use_container_width=True):
+                    with st.spinner("🧠 Analyzing image..."):
+                        response = self.analyze_image_perfect()
+                        st.session_state.image_messages.append({"role": "assistant", "content": response})
+                        st.rerun()
+            
+            # PERFECT CONTINUOUS CHAT INTERFACE FOR IMAGES
+            st.markdown("### 💬 Intelligent Chat with Your Image")
+            st.markdown("*Ask anything about your image - I can see and understand everything!*")
+            
+            # Display chat history - EXACTLY LIKE CSV
+            for message in st.session_state.image_messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+            
+            # Chat input - EXACTLY LIKE CSV
+            if prompt := st.chat_input("🔍 Ask anything about your image...", key="image_chat"):
+                # Add user message to chat history
+                st.session_state.image_messages.append({"role": "user", "content": prompt})
+                
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+                
+                # Generate assistant response
+                with st.chat_message("assistant"):
+                    with st.spinner("🧠 AI is analyzing your image..."):
+                        response = self.analyze_image_perfect(prompt)
+                        
+                        # Display response
+                        st.markdown(response)
+                        
+                        # Store complete message in chat history
+                        st.session_state.image_messages.append({
+                            "role": "assistant", 
+                            "content": response
+                        })
+                        
+                        # Update user stats
+                        self.auth_manager.update_user_stats(st.session_state.username, "image_queries")
+            
+            # Example questions for images
+            with st.expander("💡 Example Image Questions", expanded=False):
+                img_examples = [
+                    "What objects can you see in this image?",
+                    "Describe the setting and environment",
+                    "What are the dominant colors?",
+                    "Extract all visible text",
+                    "Read any signs or labels",
+                    "Describe interesting details"
+                ]
+                
+                for example in img_examples:
+                    if st.button(f"🖼️ {example}", key=f"img_{hash(example)}", use_container_width=True):
+                        st.session_state.image_messages.append({"role": "user", "content": example})
+                        response = self.analyze_image_perfect(example)
+                        st.session_state.image_messages.append({"role": "assistant", "content": response})
+                        st.rerun()
+
+    # ==================== CSV Processing Methods ====================
+    
     def display_enhanced_csv_metrics(self, df: pd.DataFrame):
         """Display enhanced CSV metrics dashboard"""
         st.markdown("### 📊 Dataset Overview")
@@ -1233,332 +1212,311 @@ class ModernMultiModalPlatform:
         with col4:
             missing_count = df.isnull().sum().sum()
             missing_pct = (missing_count / df.size) * 100 if df.size > 0 else 0
-            st.metric("❓ Missing Values", f"{missing_count:,} ({missing_pct:.1f}%)")
+            st.metric("❓ Missing", f"{missing_count:,} ({missing_pct:.1f}%)")
         
         with col5:
             duplicate_count = df.duplicated().sum()
             st.metric("🔄 Duplicates", f"{duplicate_count:,}")
         
-        # Advanced metrics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            numeric_cols = len(df.select_dtypes(include=[np.number]).columns)
-            st.metric("🔢 Numeric", numeric_cols)
-        
-        with col2:
-            text_cols = len(df.select_dtypes(include=['object']).columns)
-            st.metric("📝 Text", text_cols)
-        
-        with col3:
-            datetime_cols = len(df.select_dtypes(include=['datetime64']).columns)
-            st.metric("📅 DateTime", datetime_cols)
-        
-        with col4:
-            unique_ratio = (df.nunique().sum() / df.size) * 100 if df.size > 0 else 0
-            st.metric("🎯 Uniqueness", f"{unique_ratio:.1f}%")
+        # Data preview
+        st.markdown("### 📋 Data Preview")
+        st.dataframe(df.head(10), use_container_width=True)
 
-    def display_enhanced_data_preview(self, df: pd.DataFrame):
-        """Display enhanced data preview with multiple views"""
-        st.markdown("### 📋 Comprehensive Data Preview")
-        
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "📊 Sample Data", 
-            "📈 Statistics", 
-            "🔍 Column Info", 
-            "🎯 Data Quality", 
-            "🔗 Relationships"
-        ])
-        
-        with tab1:
-            st.markdown("**First 15 rows of your dataset:**")
-            st.dataframe(df.head(15), use_container_width=True)
-            
-            if len(df) > 15:
-                st.markdown("**Last 5 rows of your dataset:**")
-                st.dataframe(df.tail(5), use_container_width=True)
-        
-        with tab2:
-            numeric_df = df.select_dtypes(include=[np.number])
-            if not numeric_df.empty:
-                st.markdown("**Statistical Summary for Numeric Columns:**")
-                st.dataframe(numeric_df.describe(), use_container_width=True)
-            else:
-                st.info("ℹ️ No numeric columns found for statistical analysis")
-            
-            # Additional statistics for categorical data
-            categorical_df = df.select_dtypes(include=['object', 'category'])
-            if not categorical_df.empty:
-                st.markdown("**Summary for Categorical Columns:**")
-                cat_summary = pd.DataFrame({
-                    'Column': categorical_df.columns,
-                    'Unique Values': [categorical_df[col].nunique() for col in categorical_df.columns],
-                    'Most Frequent': [categorical_df[col].mode().iloc[0] if not categorical_df[col].mode().empty else 'N/A' for col in categorical_df.columns],
-                    'Frequency': [categorical_df[col].value_counts().iloc[0] if not categorical_df[col].empty else 0 for col in categorical_df.columns]
-                })
-                st.dataframe(cat_summary, use_container_width=True)
-        
-        with tab3:
-            detailed_info = pd.DataFrame({
-                'Column': df.columns,
-                'Data Type': df.dtypes.astype(str),
-                'Non-Null': df.count(),
-                'Null Count': df.isnull().sum(),
-                'Null %': round((df.isnull().sum() / len(df)) * 100, 2),
-                'Unique': [df[col].nunique() for col in df.columns],
-                'Unique %': [round((df[col].nunique() / len(df)) * 100, 2) for col in df.columns],
-                'Sample Value': [str(df[col].dropna().iloc[0]) if not df[col].dropna().empty else 'N/A' for col in df.columns]
-            })
-            st.dataframe(detailed_info, use_container_width=True)
-        
-        with tab4:
-            st.markdown("**Data Quality Assessment:**")
-            
-            quality_issues = []
-            
-            # Check for missing values
-            missing_cols = df.columns[df.isnull().any()].tolist()
-            if missing_cols:
-                quality_issues.append(f"📊 {len(missing_cols)} columns have missing values: {', '.join(missing_cols[:5])}")
-            
-            # Check for duplicates
-            dup_count = df.duplicated().sum()
-            if dup_count > 0:
-                quality_issues.append(f"🔄 {dup_count} duplicate rows found")
-            
-            # Check for potential issues
-            for col in df.columns:
-                if df[col].dtype == 'object':
-                    # Check for mixed case issues
-                    unique_vals = df[col].dropna().unique()
-                    if len(unique_vals) > 1:
-                        lower_vals = set(str(v).lower() for v in unique_vals)
-                        if len(lower_vals) < len(unique_vals):
-                            quality_issues.append(f"📝 Column '{col}' may have case inconsistencies")
-            
-            if quality_issues:
-                for issue in quality_issues[:10]:  # Show max 10 issues
-                    st.warning(issue)
-            else:
-                st.success("✅ No major data quality issues detected!")
-        
-        with tab5:
-            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            if len(numeric_cols) >= 2:
-                st.markdown("**Correlation Matrix (Top Correlations):**")
-                corr_matrix = df[numeric_cols].corr()
-                
-                # Create correlation heatmap
-                fig = px.imshow(
-                    corr_matrix,
-                    aspect="auto",
-                    color_continuous_scale="RdBu_r",
-                    title="Correlation Heatmap"
-                )
-                fig.update_layout(template="plotly_dark")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("ℹ️ Need at least 2 numeric columns to show correlations")
-
-    def process_perfect_csv_chat(self, question: str) -> Tuple[str, Optional[pd.DataFrame], Any, Optional[str]]:
+    def process_perfect_csv_chat(self, question: str) -> Tuple[str, Optional[pd.DataFrame], Any]:
         """Perfect CSV chat processing with comprehensive analysis capabilities"""
         try:
             df = st.session_state.csv_data
             question_lower = question.lower()
             
-            # First attempt: AI-powered SQL generation
-            if self.models_ready:
-                result = self.execute_enhanced_csv_query(question)
-                if result.get('success', False):
-                    result_df = result['result']
-                    response = f"✅ **AI Query executed successfully!**\n📊 Found **{len(result_df):,}** records"
+            # First attempt: Try to understand the question and provide appropriate response
+            if any(keyword in question_lower for keyword in ["show", "display", "head", "first", "preview", "sample"]):
+                return self.handle_display_query(question, df)
+            elif any(keyword in question_lower for keyword in ["columns", "fields", "structure", "info"]):
+                return self.handle_column_query(question, df)
+            elif any(keyword in question_lower for keyword in ["summary", "describe", "statistics", "stats", "overview"]):
+                return self.handle_summary_query(question, df)
+            elif any(keyword in question_lower for keyword in ["missing", "null", "empty", "na"]):
+                return self.handle_missing_query(question, df)
+            elif any(keyword in question_lower for keyword in ["unique", "distinct", "different"]):
+                return self.handle_unique_query(question, df)
+            elif any(keyword in question_lower for keyword in ["duplicate", "duplicated", "repeated"]):
+                return self.handle_duplicate_query(question, df)
+            else:
+                # Default response for other questions
+                response = f"🤔 **I understand you're asking:** '{question}'\n\nLet me show you a sample of your data to help:"
+                return response, df.head(10), None
                     
-                    # Create intelligent visualization
-                    chart = self.create_perfect_chart(result_df, question)
-                    
-                    # Generate additional analysis
-                    analysis = self.generate_additional_analysis(result_df, question)
-                    
-                    return response, result_df, chart, analysis
-            
-            # Enhanced keyword-based processing with comprehensive handlers
-            handlers = [
-                (["show", "display", "head", "first", "preview", "sample"], self.handle_display_query),
-                (["columns", "fields", "structure", "schema", "info"], self.handle_column_query),
-                (["summary", "describe", "statistics", "stats", "overview"], self.handle_summary_query),
-                (["missing", "null", "empty", "na", "nan", "blank"], self.handle_missing_query),
-                (["unique", "distinct", "different", "values"], self.handle_unique_query),
-                (["duplicate", "duplicated", "repeated"], self.handle_duplicate_query),
-                (["correlation", "corr", "relationship"], self.handle_correlation_query),
-                (["filter", "where", "condition", "subset"], self.handle_filter_query),
-                (["sort", "order", "arrange", "rank"], self.handle_sort_query),
-                (["group", "aggregate", "groupby", "summarize"], self.handle_group_query),
-                (["count", "frequency", "distribution"], self.handle_count_query),
-                (["average", "mean", "median", "mode"], self.handle_statistical_query),
-                (["min", "max", "maximum", "minimum"], self.handle_minmax_query),
-                (["chart", "plot", "graph", "visualize", "visualization"], self.handle_visualization_query),
-                (["quality", "issues", "problems", "errors"], self.handle_quality_query),
-                (["compare", "comparison", "versus", "vs"], self.handle_comparison_query)
-            ]
-            
-            # Find matching handler
-            for keywords, handler in handlers:
-                if any(keyword in question_lower for keyword in keywords):
-                    response, data_result, chart, analysis = handler(question, df)
-                    return response, data_result, chart, analysis
-            
-            # AI-powered general analysis for unmatched queries
-            if self.models_ready:
-                try:
-                    ai_response = self.generate_comprehensive_ai_response(question, df)
-                    return ai_response, df.head(10), None, None
-                except Exception as e:
-                    print(f"AI analysis error: {str(e)}")
-            
-            # Final intelligent fallback
-            fallback_response = f"🤔 **I understand you're asking about:** '{question}'\n\n" \
-                              f"Let me show you a sample of your data to help guide your analysis:"
-            
-            return fallback_response, df.head(10), None, None
-            
         except Exception as e:
-            error_response = f"❌ **Error processing question:** {str(e)}\n\n" \
-                           f"Here's a sample of your data for reference:"
-            return error_response, df.head(5) if df is not None else None, None, None
+            error_response = f"❌ **Error processing question:** {str(e)}\n\nHere's a sample of your data:"
+            return error_response, df.head(5) if df is not None else None, None
 
-    # Handler methods for different query types
-    def handle_display_query(self, question: str, df: pd.DataFrame) -> Tuple[str, pd.DataFrame, Any, str]:
-        """Enhanced display query handler"""
-        # Extract number of rows
+    # ALL MISSING HANDLER METHODS - COMPLETE IMPLEMENTATION
+    
+    def handle_display_query(self, question: str, df: pd.DataFrame) -> Tuple[str, pd.DataFrame, Any]:
+        """Handle data display queries"""
         numbers = re.findall(r'\d+', question)
-        num_rows = min(int(numbers[0]), 200) if numbers else 10
+        num_rows = min(int(numbers[0]), 100) if numbers else 10
         
         result_df = df.head(num_rows)
-        
-        response = f"📋 **Displaying first {len(result_df)} rows:**\n" \
-                  f"• Dataset shape: **{df.shape[0]:,} rows × {df.shape[1]} columns**\n" \
-                  f"• Memory usage: **{df.memory_usage(deep=True).sum() / 1024 / 1024:.1f} MB**"
-        
-        analysis = f"**Data Overview:**\n" \
-                  f"• Column types: {dict(df.dtypes.value_counts())}\n" \
-                  f"• Missing values: {df.isnull().sum().sum():,} total\n" \
-                  f"• Duplicate rows: {df.duplicated().sum():,}"
-        
-        return response, result_df, None, analysis
+        response = f"📋 **Displaying first {len(result_df)} rows:**\n• Dataset shape: **{df.shape[0]:,} rows × {df.shape[1]} columns**"
+        return response, result_df, None
 
-    def handle_column_query(self, question: str, df: pd.DataFrame) -> Tuple[str, pd.DataFrame, Any, str]:
-        """Enhanced column information handler"""
+    def handle_column_query(self, question: str, df: pd.DataFrame) -> Tuple[str, pd.DataFrame, Any]:
+        """Handle column information queries"""
         columns_info = pd.DataFrame({
             'Column': df.columns,
             'Data Type': df.dtypes.astype(str),
-            'Non-Null': df.count(),
+            'Non-Null Count': df.count(),
             'Null Count': df.isnull().sum(),
-            'Null %': round((df.isnull().sum() / len(df)) * 100, 2),
-            'Unique': [df[col].nunique() for col in df.columns],
-            'Unique %': round((df.nunique() / len(df)) * 100, 2),
-            'Memory (KB)': round(df.memory_usage(deep=True)[1:] / 1024, 2),
-            'Sample': [str(df[col].dropna().iloc[0]) if not df[col].dropna().empty else 'N/A' for col in df.columns]
+            'Sample Value': [str(df[col].dropna().iloc[0]) if not df[col].dropna().empty else 'N/A' for col in df.columns]
         })
         
-        response = f"📊 **Complete Column Analysis:**\n" \
-                  f"• Total columns: **{len(df.columns)}**\n" \
-                  f"• Numeric: **{len(df.select_dtypes(include=[np.number]).columns)}**\n" \
-                  f"• Text: **{len(df.select_dtypes(include=['object']).columns)}**\n" \
-                  f"• DateTime: **{len(df.select_dtypes(include=['datetime64']).columns)}**"
-        
-        # Additional analysis
-        problematic_cols = df.columns[df.isnull().sum() > len(df) * 0.5].tolist()
-        analysis = ""
-        if problematic_cols:
-            analysis = f"⚠️ **Columns with >50% missing data:** {', '.join(problematic_cols)}"
-        
-        return response, columns_info, None, analysis
+        response = f"📊 **Column Information:**\n• Total columns: **{len(df.columns)}**"
+        return response, columns_info, None
 
-    # Additional handler methods would continue here...
-    # For brevity, I'll include the key methods for CSV processing
-    
-    def execute_enhanced_csv_query(self, question):
-        """Execute enhanced CSV query with better error handling"""
-        if st.session_state.csv_data is None:
-            return {"success": False, "error": "No CSV data loaded"}
+    def handle_summary_query(self, question: str, df: pd.DataFrame) -> Tuple[str, pd.DataFrame, Any]:
+        """Handle summary statistics queries"""
+        numeric_df = df.select_dtypes(include=[np.number])
+        if not numeric_df.empty:
+            summary_df = numeric_df.describe()
+            response = f"📈 **Statistical Summary:**\n• Numeric columns: **{len(numeric_df.columns)}**"
+            return response, summary_df, None
+        else:
+            response = f"📊 **Dataset Overview:**\n• No numeric columns for statistical summary"
+            basic_info = pd.DataFrame({
+                'Metric': ['Total Rows', 'Total Columns', 'Data Types'],
+                'Value': [len(df), len(df.columns), ', '.join(df.dtypes.astype(str).unique())]
+            })
+            return response, basic_info, None
+
+    def handle_missing_query(self, question: str, df: pd.DataFrame) -> Tuple[str, pd.DataFrame, Any]:
+        """Handle missing values analysis"""
+        missing_data = df.isnull().sum()
+        missing_df = pd.DataFrame({
+            'Column': missing_data.index,
+            'Missing Count': missing_data.values,
+            'Missing %': round((missing_data.values / len(df)) * 100, 2)
+        }).sort_values('Missing Count', ascending=False)
         
-        try:
-            if not self.models_ready:
-                return {"success": False, "error": "AI models not available"}
-            
-            df = st.session_state.csv_data
-            sql_query = self.generate_enhanced_sql_query(question, df)
-            cleaned_query = self.clean_sql_query_robust(sql_query)
-            
-            # Execute query with timeout protection
-            connection = sqlite3.connect(f"{st.session_state.db_name}.db")
-            result_df = pd.read_sql_query(cleaned_query, connection)
-            connection.close()
-            
-            return {
-                'sql_query': cleaned_query,
-                'result': result_df,
-                'success': True
-            }
-            
-        except Exception as e:
-            return {'error': str(e), 'success': False}
+        total_missing = missing_data.sum()
+        response = f"🔍 **Missing Values Analysis:**\n• Total missing: **{total_missing:,}** values"
+        return response, missing_df, None
+
+    def handle_unique_query(self, question: str, df: pd.DataFrame) -> Tuple[str, pd.DataFrame, Any]:
+        """Handle unique values analysis"""
+        unique_info = pd.DataFrame({
+            'Column': df.columns,
+            'Unique Values': [df[col].nunique() for col in df.columns],
+            'Total Values': len(df),
+            'Most Common': [str(df[col].mode().iloc[0]) if not df[col].mode().empty else 'N/A' for col in df.columns]
+        })
+        
+        response = f"🔢 **Unique Values Analysis:**\n• Columns analyzed: **{len(df.columns)}**"
+        return response, unique_info, None
+
+    def handle_duplicate_query(self, question: str, df: pd.DataFrame) -> Tuple[str, pd.DataFrame, Any]:
+        """Handle duplicate analysis"""
+        duplicates = df.duplicated()
+        duplicate_count = duplicates.sum()
+        
+        if duplicate_count > 0:
+            duplicate_rows = df[duplicates].head(20)
+            response = f"🔍 **Duplicate Analysis:**\n• Found **{duplicate_count}** duplicate rows"
+            return response, duplicate_rows, None
+        else:
+            info_df = pd.DataFrame({
+                'Analysis': ['Total Rows', 'Duplicate Rows', 'Unique Rows'],
+                'Result': [len(df), duplicate_count, len(df) - duplicate_count]
+            })
+            response = f"✅ **No duplicate rows found!**"
+            return response, info_df, None
 
     def create_enhanced_csv_database(self, df):
-        """Create enhanced SQLite database with better handling"""
+        """Create enhanced SQLite database with proper path handling"""
         try:
-            # Ensure database directory exists
-            os.makedirs(os.path.dirname(f"{st.session_state.db_name}.db"), exist_ok=True)
+            # Create a simple database name without path issues
+            db_path = "analytics_db.db"
             
-            connection = sqlite3.connect(f"{st.session_state.db_name}.db")
+            connection = sqlite3.connect(db_path)
             df.to_sql(st.session_state.table_name, connection, if_exists='replace', index=False)
             connection.close()
             return True
         except Exception as e:
-            st.error(f"❌ Database creation error: {str(e)}")
+            print(f"Database creation error: {str(e)}")
             return False
 
-    # Document and Image processing methods remain the same...
-    def render_documents_page(self):
-        """Render Document Intelligence page"""
-        st.markdown("## 📄 Document Intelligence with Perfect Continuous Chat")
-        
-        if not self.models_ready:
-            st.error("❌ AI models not available. Please check your Google API key configuration.")
-            return
-        
-        # Document processing code here...
-        st.info("📄 Document processing functionality available - upload PDFs and Word documents for AI analysis.")
+    # ==================== Document Processing Methods ====================
+    
+    def process_documents(self, uploaded_pdfs, uploaded_docs):
+        """Process uploaded documents with enhanced progress tracking"""
+        try:
+            all_text = ""
+            processed_files = []
+            
+            # Process PDFs
+            if uploaded_pdfs:
+                for pdf_file in uploaded_pdfs:
+                    try:
+                        pdf_reader = PdfReader(pdf_file)
+                        pdf_text = ""
+                        
+                        for page_num, page in enumerate(pdf_reader.pages):
+                            page_text = page.extract_text()
+                            if page_text.strip():
+                                pdf_text += f"\n--- Page {page_num + 1} of {pdf_file.name} ---\n{page_text}\n"
+                        
+                        if pdf_text.strip():
+                            all_text += pdf_text
+                            processed_files.append(f"📄 {pdf_file.name} ({len(pdf_reader.pages)} pages)")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error reading {pdf_file.name}: {str(e)}")
+            
+            # Process Word documents
+            if uploaded_docs:
+                for doc_file in uploaded_docs:
+                    try:
+                        doc = docx.Document(doc_file)
+                        doc_text = ""
+                        para_count = 0
+                        
+                        for paragraph in doc.paragraphs:
+                            if paragraph.text.strip():
+                                doc_text += paragraph.text + "\n"
+                                para_count += 1
+                        
+                        if doc_text.strip():
+                            all_text += f"\n--- {doc_file.name} ---\n{doc_text}\n"
+                            processed_files.append(f"📝 {doc_file.name} ({para_count} paragraphs)")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error reading {doc_file.name}: {str(e)}")
+            
+            # Create vector store if we have text
+            if all_text.strip():
+                text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=10000,
+                    chunk_overlap=1000,
+                    length_function=len
+                )
+                text_chunks = text_splitter.split_text(all_text)
+                
+                if text_chunks:
+                    vector_store = FAISS.from_texts(text_chunks, self.embeddings)
+                    st.session_state.document_vector_store = vector_store
+                    st.session_state.processed_files = processed_files
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            st.error(f"❌ Error processing documents: {str(e)}")
+            return False
 
-    def render_images_page(self):
-        """Render Image Intelligence page"""
-        st.markdown("## 🖼️ Image Intelligence with Perfect Continuous Chat")
+    def process_document_chat(self, question):
+        """Process document chat with enhanced analysis"""
+        if not self.models_ready:
+            return "❌ AI models not available for document analysis."
+        
+        try:
+            # Get relevant documents
+            docs = st.session_state.document_vector_store.similarity_search(question, k=4)
+            
+            if not docs:
+                return "❌ No relevant information found in the documents for your question."
+            
+            # Enhanced prompt template
+            prompt_template = """
+            You are an expert document analyst. Analyze the provided document context and answer the question comprehensively.
+            
+            Document Context:
+            {context}
+            
+            Question: {question}
+            
+            Professional Analysis:
+            """
+            
+            prompt = PromptTemplate(
+                template=prompt_template,
+                input_variables=["context", "question"]
+            )
+            
+            # Create and run chain
+            chain = load_qa_chain(self.gemini_model, chain_type="stuff", prompt=prompt)
+            
+            response = chain.invoke(
+                {"input_documents": docs, "question": question},
+                return_only_outputs=True
+            )
+            
+            return f"📚 **Document Analysis:**\n\n{response['output_text']}"
+            
+        except Exception as e:
+            return f"❌ Error analyzing documents: {str(e)}. Please try rephrasing your question."
+
+    # ==================== Image Processing Methods ====================
+    
+    def analyze_image_perfect(self, question=""):
+        """Enhanced image analysis with comprehensive prompts"""
+        if st.session_state.current_image is None:
+            return "❌ No image uploaded. Please upload an image first."
         
         if not self.models_ready:
-            st.error("❌ AI models not available. Please check your Google API key configuration.")
-            return
+            return "❌ AI vision models not available for image analysis."
         
-        # Image processing code here...
-        st.info("🖼️ Image processing functionality available - upload images for AI analysis.")
+        try:
+            image = st.session_state.current_image
+            
+            if question:
+                prompt = f"""
+                You are an expert computer vision analyst. Analyze this image and answer: {question}
+                
+                Provide a comprehensive response with:
+                1. Direct answer to the question
+                2. Visual evidence supporting your answer
+                3. Any visible text or labels
+                4. Additional relevant details
+                
+                Be thorough and accurate in your analysis.
+                """
+            else:
+                prompt = """
+                You are an expert computer vision analyst. Provide a comprehensive analysis of this image.
+                
+                Include:
+                - Main subjects and objects
+                - Setting and environment
+                - Colors and visual elements
+                - Any visible text or writing
+                - Notable details and observations
+                - Technical aspects (lighting, composition, quality)
+                
+                Provide a detailed, professional analysis.
+                """
+            
+            response = self.gemini_vision.generate_content([prompt, image])
+            return f"🖼️ **Expert Image Analysis:**\n\n{response.text}"
+            
+        except Exception as e:
+            return f"❌ Error analyzing image: {str(e)}. Please try uploading the image again."
 
     def logout_user(self):
-        """Enhanced logout with user confirmation and cleanup"""
-        # Store current username for goodbye message
+        """Enhanced logout with cleanup"""
         username = st.session_state.get('username', 'User')
         user_info = self.auth_manager.get_user_info(username)
         
-        # Show logout confirmation
         st.success(f"👋 Thank you for using Elite AI Platform, {user_info.get('full_name', username)}!")
         
         # Clear all session state
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         
-        time.sleep(3)
+        time.sleep(2)
         st.rerun()
 
     def run(self):
-        """Main application runner with comprehensive error handling"""
+        """Main application runner"""
         try:
             if not st.session_state.authenticated:
                 self.render_modern_landing_page()
@@ -1571,7 +1529,6 @@ class ModernMultiModalPlatform:
 # Application Entry Point
 if __name__ == "__main__":
     try:
-        # Initialize and run the application
         app = ModernMultiModalPlatform()
         app.run()
     except Exception as e:
