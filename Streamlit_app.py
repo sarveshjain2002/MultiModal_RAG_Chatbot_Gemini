@@ -9,9 +9,9 @@ from PIL import Image
 from PyPDF2 import PdfReader
 import google.generativeai as genai
 import docx
-#from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain.embeddings import GoogleGenerativeAIEmbeddings
-from langchain.chat_models import ChatGoogleGenerativeAI
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+# from langchain.embeddings import GoogleGenerativeAIEmbeddings
+# from langchain.chat_models import ChatGoogleGenerativeAI
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains.question_answering import load_qa_chain
@@ -1347,4 +1347,5 @@ if __name__ == "__main__":
             pip install langchain langchain-google-genai langchain-community faiss-cpu 
             pip install python-dotenv plotly nest-asyncio
             """)
+
 
