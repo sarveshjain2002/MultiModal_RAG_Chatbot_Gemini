@@ -1,11 +1,35 @@
+fastapi
+requests
+uvicorn
+sentencepiece
+torch
+transformers
 streamlit
-pillow
+streamlit
+google-generativeai
+python-dotenv
+langchain
+PyPDF2
+chromadb
+faiss-cpu
+langchain_google_genai
+
+# Core app
+streamlit
+python-dotenv
+
+# File handling
+Pillow
 PyPDF2
 python-docx
+
+# Google Gemini + LangChain
 google-generativeai
 langchain
+langchain-google-genai
 langchain-community
-python-dotenv
-pandas
-plotly
-nest_asyncio
+
+# Vector store
+faiss-cpu
+
+mammoth
