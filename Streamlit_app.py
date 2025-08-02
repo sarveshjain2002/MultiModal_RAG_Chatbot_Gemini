@@ -4,7 +4,6 @@ import time
 import json
 import hashlib
 import pandas as pd
-import sqlite3
 from PIL import Image
 from PyPDF2 import PdfReader
 import google.generativeai as genai
@@ -16,15 +15,8 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 from datetime import datetime
-import plotly.express as px
-import plotly.graph_objects as go
-import numpy as np
-import re
-import csv
-import io
 import warnings
 import traceback
-import math
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -32,232 +24,31 @@ load_dotenv()
 
 # Set page config
 st.set_page_config(
-    page_title="Elite MultiModal AI Platform",
-    page_icon="🚀",
+    page_title="Elite Document & Image AI Platform",
+    page_icon="🧠",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ==================== BULLETPROOF CSV HANDLER ====================
-
-class UltraCSVHandler:
-    """Ultra-robust CSV handler that works with ANY CSV format"""
-    
-    def __init__(self):
-        self.encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'iso-8859-1', 'cp1252', 'ascii']
-        self.delimiters = [',', ';', '\t', '|', ' ', ':', '-']
-    
-    def detect_encoding(self, file_bytes):
-        """Detect file encoding with multiple methods"""
-        # Try chardet if available
-        try:
-            import chardet
-            result = chardet.detect(file_bytes)
-            if result['encoding'] and result['confidence'] > 0.7:
-                return result['encoding']
-        except ImportError:
-            pass
-        
-        # Fallback: try common encodings
-        for encoding in self.encodings:
-            try:
-                file_bytes.decode(encoding)
-                return encoding
-            except UnicodeDecodeError:
-                continue
-        return 'utf-8'  # Final fallback
-
-    def detect_delimiter(self, text_sample):
-        """Detect CSV delimiter"""
-        try:
-            # Use csv.Sniffer
-            sniffer = csv.Sniffer()
-            delimiter = sniffer.sniff(text_sample, delimiters=',;\t|').delimiter
-            return delimiter
-        except:
-            # Count frequency of potential delimiters
-            counts = {d: text_sample.count(d) for d in [',', ';', '\t', '|']}
-            return max(counts, key=counts.get) if max(counts.values()) > 0 else ','
-
-    def read_csv_bulletproof(self, uploaded_file):
-        """Bulletproof CSV reading with multiple fallback strategies"""
-        messages = []
-        
-        try:
-            # Read file bytes
-            file_bytes = uploaded_file.read()
-            uploaded_file.seek(0)
-            
-            # Detect encoding
-            encoding = self.detect_encoding(file_bytes)
-            messages.append(f"✅ Detected encoding: {encoding}")
-            
-            # Get text sample for delimiter detection
-            try:
-                text_sample = file_bytes[:8192].decode(encoding, errors='ignore')
-                delimiter = self.detect_delimiter(text_sample)
-                messages.append(f"✅ Detected delimiter: '{delimiter}'")
-            except:
-                delimiter = ','
-                messages.append(f"⚠️ Using default delimiter: ','")
-            
-            # Strategy 1: Standard pandas read_csv
-            strategies = [
-                lambda: self._strategy_standard(uploaded_file, encoding, delimiter),
-                lambda: self._strategy_python_engine(uploaded_file, encoding, delimiter),
-                lambda: self._strategy_robust(uploaded_file, encoding),
-                lambda: self._strategy_manual(uploaded_file, encoding, delimiter),
-                lambda: self._strategy_fallback(uploaded_file)
-            ]
-            
-            for i, strategy in enumerate(strategies, 1):
-                try:
-                    uploaded_file.seek(0)
-                    df = strategy()
-                    if df is not None and not df.empty and len(df.columns) > 0:
-                        messages.append(f"✅ Success with strategy {i}")
-                        df = self._clean_dataframe(df)
-                        if self._validate_dataframe(df):
-                            return df, "\n".join(messages)
-                except Exception as e:
-                    messages.append(f"❌ Strategy {i} failed: {str(e)[:100]}")
-                    continue
-            
-            return None, "❌ All strategies failed"
-            
-        except Exception as e:
-            return None, f"❌ Critical error: {str(e)}"
-
-    def _strategy_standard(self, file, encoding, delimiter):
-        """Standard pandas read_csv"""
-        return pd.read_csv(file, encoding=encoding, sep=delimiter)
-
-    def _strategy_python_engine(self, file, encoding, delimiter):
-        """Python engine with error handling"""
-        return pd.read_csv(
-            file, 
-            encoding=encoding, 
-            sep=delimiter, 
-            engine='python',
-            on_bad_lines='skip',
-            skipinitialspace=True
-        )
-
-    def _strategy_robust(self, file, encoding):
-        """Robust strategy with auto-detection"""
-        return pd.read_csv(
-            file,
-            encoding=encoding,
-            sep=None,
-            engine='python',
-            on_bad_lines='skip'
-        )
-
-    def _strategy_manual(self, file, encoding, delimiter):
-        """Manual parsing strategy"""
-        content = file.read().decode(encoding, errors='replace')
-        lines = content.strip().split('\n')
-        
-        if len(lines) < 2:
-            return None
-            
-        # Parse headers
-        headers = [h.strip().strip('"').strip("'") for h in lines[0].split(delimiter)]
-        
-        # Parse data
-        data = []
-        for line in lines[1:]:
-            if line.strip():
-                row = [cell.strip().strip('"').strip("'") for cell in line.split(delimiter)]
-                # Ensure row has same length as headers
-                while len(row) < len(headers):
-                    row.append('')
-                data.append(row[:len(headers)])
-        
-        return pd.DataFrame(data, columns=headers)
-
-    def _strategy_fallback(self, file):
-        """Final fallback strategy"""
-        try:
-            # Try with different encodings and delimiters
-            for encoding in ['utf-8', 'latin-1']:
-                for delimiter in [',', ';', '\t']:
-                    try:
-                        file.seek(0)
-                        df = pd.read_csv(
-                            file,
-                            encoding=encoding,
-                            sep=delimiter,
-                            engine='python',
-                            on_bad_lines='skip',
-                            header=0
-                        )
-                        if not df.empty:
-                            return df
-                    except:
-                        continue
-            return None
-        except:
-            return None
-
-    def _clean_dataframe(self, df):
-        """Clean and optimize dataframe"""
-        try:
-            # Remove empty rows and columns
-            df = df.dropna(how='all', axis=0).dropna(how='all', axis=1)
-            
-            # Clean column names
-            df.columns = df.columns.astype(str)
-            df.columns = [str(col).strip().replace('\n', ' ').replace('\r', '') for col in df.columns]
-            
-            # Handle unnamed columns
-            for i, col in enumerate(df.columns):
-                if 'Unnamed:' in str(col) or str(col).strip() == '':
-                    df.rename(columns={col: f'Column_{i+1}'}, inplace=True)
-            
-            # Convert numeric columns
-            for col in df.columns:
-                if df[col].dtype == 'object':
-                    # Try to convert to numeric
-                    try:
-                        df[col] = pd.to_numeric(df[col], errors='coerce')
-                    except:
-                        pass
-            
-            # Remove duplicates
-            df = df.drop_duplicates()
-            
-            return df.reset_index(drop=True)
-        except:
-            return df
-
-    def _validate_dataframe(self, df):
-        """Validate dataframe"""
-        if df is None or df.empty:
-            return False
-        if len(df.columns) == 0:
-            return False
-        if df.isna().all().all():
-            return False
-        return True
-
 # ==================== AI CONFIGURATION ====================
 
 def configure_google_ai():
-    """Configure Google AI"""
+    """Configure Google AI with robust key handling"""
     try:
         api_key = None
         
+        # Try Streamlit secrets first
         if hasattr(st, 'secrets') and "GOOGLE_API_KEY" in st.secrets:
             api_key = st.secrets["GOOGLE_API_KEY"].strip().strip('"').strip("'")
         
+        # Fallback to environment variables
         if not api_key:
             api_key = os.getenv("GOOGLE_API_KEY")
             if api_key:
                 api_key = api_key.strip().strip('"').strip("'")
         
         if not api_key:
-            raise Exception("Google API Key not found")
+            raise Exception("Google API Key not found. Please add GOOGLE_API_KEY to secrets.")
         
         genai.configure(api_key=api_key)
         return api_key, True, "Google AI configured successfully!"
@@ -269,7 +60,7 @@ API_KEY, AI_CONFIGURED, CONFIG_MESSAGE = configure_google_ai()
 
 @st.cache_resource
 def get_ai_models():
-    """Initialize AI models"""
+    """Initialize and cache AI models"""
     try:
         if not AI_CONFIGURED or not API_KEY:
             return None, None, None, False
@@ -305,7 +96,7 @@ class ModernAuthManager:
                 json.dump({}, f)
     
     def hash_password(self, password):
-        salt = "modern_ai_platform_2025"
+        salt = "elite_ai_platform_2025"
         return hashlib.sha256((password + salt).encode()).hexdigest()
     
     def register_user(self, username, password, email, full_name):
@@ -325,7 +116,6 @@ class ModernAuthManager:
                 "full_name": full_name,
                 "created_at": datetime.now().isoformat(),
                 "login_count": 0,
-                "csv_queries": 0,
                 "document_queries": 0,
                 "image_queries": 0,
                 "last_login": None
@@ -380,486 +170,448 @@ class ModernAuthManager:
         except Exception as e:
             print(f"Error updating user stats: {str(e)}")
 
-# ==================== ENHANCED DATAFRAME VIEWER ====================
-
-class EnhancedDataFrameViewer:
-    """Enhanced DataFrame viewer with scrolling and pagination"""
-    
-    def __init__(self, df):
-        self.df = df
-        self.rows_per_page = 50
-    
-    def display_with_controls(self, key_suffix=""):
-        """Display dataframe with enhanced controls"""
-        if self.df is None or self.df.empty:
-            st.warning("No data to display")
-            return
-        
-        total_rows = len(self.df)
-        total_pages = math.ceil(total_rows / self.rows_per_page)
-        
-        # Controls section
-        st.markdown("### 📊 Enhanced Data Viewer")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            # Rows per page selector
-            rows_per_page = st.selectbox(
-                "Rows per page:",
-                [25, 50, 100, 200, 500, 1000, "All"],
-                index=1,
-                key=f"rows_per_page_{key_suffix}"
-            )
-            
-            if rows_per_page != "All":
-                self.rows_per_page = int(rows_per_page)
-                total_pages = math.ceil(total_rows / self.rows_per_page)
-            else:
-                self.rows_per_page = total_rows
-                total_pages = 1
-        
-        with col2:
-            # Page selector
-            if total_pages > 1:
-                current_page = st.selectbox(
-                    "Page:",
-                    range(1, total_pages + 1),
-                    key=f"page_selector_{key_suffix}"
-                )
-            else:
-                current_page = 1
-                st.write("**Page:** 1 of 1")
-        
-        with col3:
-            # Display options
-            display_option = st.selectbox(
-                "Display Mode:",
-                ["Standard", "Full Width", "Compact", "Scrollable"],
-                key=f"display_mode_{key_suffix}"
-            )
-        
-        with col4:
-            # Column selector
-            if st.button("📋 Column Selector", key=f"col_selector_{key_suffix}"):
-                st.session_state[f"show_column_selector_{key_suffix}"] = not st.session_state.get(f"show_column_selector_{key_suffix}", False)
-        
-        # Column selector
-        selected_columns = list(self.df.columns)
-        if st.session_state.get(f"show_column_selector_{key_suffix}", False):
-            st.markdown("**🔍 Select Columns to Display:**")
-            selected_columns = st.multiselect(
-                "Choose columns:",
-                self.df.columns.tolist(),
-                default=self.df.columns.tolist(),
-                key=f"columns_{key_suffix}"
-            )
-        
-        if not selected_columns:
-            selected_columns = list(self.df.columns)
-        
-        # Calculate start and end indices for pagination
-        if total_pages > 1:
-            start_idx = (current_page - 1) * self.rows_per_page
-            end_idx = min(start_idx + self.rows_per_page, total_rows)
-            display_df = self.df[selected_columns].iloc[start_idx:end_idx]
-            
-            st.info(f"📄 Showing rows {start_idx + 1} to {end_idx} of {total_rows:,} total rows (Page {current_page} of {total_pages})")
-        else:
-            display_df = self.df[selected_columns]
-            st.info(f"📄 Showing all {total_rows:,} rows")
-        
-        # Display options
-        if display_option == "Full Width":
-            st.dataframe(display_df, use_container_width=True, height=600)
-        elif display_option == "Compact":
-            st.dataframe(display_df, height=400)
-        elif display_option == "Scrollable":
-            # Enhanced scrollable display
-            st.markdown("""
-            <style>
-            .scrollable-dataframe {
-                height: 600px;
-                overflow-y: scroll;
-                border: 2px solid #333333;
-                border-radius: 10px;
-                background: #1a1a1a;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-            
-            with st.container():
-                st.dataframe(display_df, use_container_width=True, height=600)
-        else:
-            st.dataframe(display_df, use_container_width=True)
-        
-        # Navigation buttons for large datasets
-        if total_pages > 1:
-            col1, col2, col3, col4, col5 = st.columns(5)
-            
-            with col1:
-                if st.button("⏪ First", disabled=(current_page == 1), key=f"first_{key_suffix}"):
-                    st.session_state[f"page_selector_{key_suffix}"] = 1
-                    st.rerun()
-            
-            with col2:
-                if st.button("◀️ Previous", disabled=(current_page == 1), key=f"prev_{key_suffix}"):
-                    if current_page > 1:
-                        st.session_state[f"page_selector_{key_suffix}"] = current_page - 1
-                        st.rerun()
-            
-            with col3:
-                st.write(f"**Page {current_page} of {total_pages}**")
-            
-            with col4:
-                if st.button("▶️ Next", disabled=(current_page == total_pages), key=f"next_{key_suffix}"):
-                    if current_page < total_pages:
-                        st.session_state[f"page_selector_{key_suffix}"] = current_page + 1
-                        st.rerun()
-            
-            with col5:
-                if st.button("⏩ Last", disabled=(current_page == total_pages), key=f"last_{key_suffix}"):
-                    st.session_state[f"page_selector_{key_suffix}"] = total_pages
-                    st.rerun()
-        
-        return display_df
-    
-    def display_summary_stats(self):
-        """Display summary statistics"""
-        if self.df is None or self.df.empty:
-            return
-        
-        st.markdown("### 📈 Dataset Summary")
-        
-        col1, col2, col3, col4, col5 = st.columns(5)
-        
-        with col1:
-            st.metric("📋 Total Rows", f"{len(self.df):,}")
-        with col2:
-            st.metric("📊 Total Columns", len(self.df.columns))
-        with col3:
-            memory_mb = self.df.memory_usage(deep=True).sum() / 1024 / 1024
-            st.metric("💾 Memory Usage", f"{memory_mb:.1f} MB")
-        with col4:
-            missing_count = self.df.isnull().sum().sum()
-            missing_pct = (missing_count / self.df.size) * 100 if self.df.size > 0 else 0
-            st.metric("❓ Missing Values", f"{missing_count:,} ({missing_pct:.1f}%)")
-        with col5:
-            duplicate_count = self.df.duplicated().sum()
-            st.metric("🔄 Duplicates", f"{duplicate_count:,}")
-
 # ==================== MAIN PLATFORM ====================
 
-class ModernMultiModalPlatform:
+class EliteDocumentImagePlatform:
     def __init__(self):
         self.auth_manager = ModernAuthManager()
-        self.csv_handler = UltraCSVHandler()
         self.initialize_session_state()
         self.gemini_model, self.gemini_vision, self.embeddings, self.models_ready = get_ai_models()
-        self.apply_css()
+        self.apply_professional_css()
     
     def initialize_session_state(self):
-        """Initialize session state"""
+        """Initialize session state variables"""
         defaults = {
             'authenticated': False,
             'username': '',
-            'current_page': 'csv',
-            'csv_messages': [],
+            'current_page': 'documents',
             'document_messages': [],
             'image_messages': [],
             'current_image': None,
             'document_vector_store': None,
             'processed_files': [],
-            'csv_data': None,
-            'csv_file_name': '',
-            'csv_processing_info': '',
-            'csv_columns': [],
-            'dynamic_examples': [],
-            'dataframe_viewer': None
         }
         
         for key, default_value in defaults.items():
             if key not in st.session_state:
                 st.session_state[key] = default_value
 
-    def apply_css(self):
-        """Apply modern CSS with enhanced dataframe styling"""
+    def apply_professional_css(self):
+        """Apply professional dark theme CSS"""
         st.markdown("""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
         
-        /* Global Black Theme */
+        :root {
+            --primary-bg: #0a0a0a;
+            --secondary-bg: #111111;
+            --tertiary-bg: #1a1a1a;
+            --accent-bg: #222222;
+            --border-color: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-accent: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+            --border-radius: 12px;
+        }
+        
+        /* Global Styles */
         .main {
-            font-family: 'Inter', sans-serif;
-            background: #000000 !important;
-            color: #ffffff !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--primary-bg) !important;
+            color: var(--text-primary) !important;
+            line-height: 1.6;
         }
         
         .stApp {
-            background: #000000 !important;
+            background: var(--primary-bg) !important;
         }
         
-        /* Hide Streamlit Elements */
+        /* Hide Default Streamlit Elements */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
         .stDeployButton {display: none;}
         header[data-testid="stHeader"] {visibility: hidden;}
         
-        /* Modern Header */
-        .modern-header {
-            background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);
+        /* Professional Header */
+        .elite-header {
+            background: var(--gradient-primary);
             padding: 3rem 2rem;
-            border-radius: 0 0 2rem 2rem;
+            border-radius: 0 0 24px 24px;
             text-align: center;
-            margin: -1rem -1rem 2rem -1rem;
-            border: 2px solid #333333;
+            margin: -1rem -1rem 3rem -1rem;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
         }
         
-        .modern-header h1 {
+        .elite-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        
+        .elite-header h1 {
             color: #ffffff;
-            font-size: 3rem;
+            font-size: 3.2rem;
             font-weight: 800;
             margin: 0;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            text-shadow: 2px 4px 8px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 2;
         }
         
-        .modern-header p {
-            color: #cccccc;
-            font-size: 1.2rem;
+        .elite-header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.3rem;
             margin: 1rem 0 0 0;
+            font-weight: 500;
+            position: relative;
+            z-index: 2;
         }
         
-        /* Enhanced Buttons */
+        /* Professional Buttons */
         .stButton > button {
-            background: linear-gradient(135deg, #333333 0%, #1a1a1a 100%) !important;
-            color: #ffffff !important;
-            border: 2px solid #444444 !important;
-            border-radius: 1rem !important;
-            padding: 0.75rem 2rem !important;
+            background: var(--tertiary-bg) !important;
+            color: var(--text-primary) !important;
+            border: 2px solid var(--border-color) !important;
+            border-radius: var(--border-radius) !important;
+            padding: 0.875rem 2rem !important;
             font-weight: 600 !important;
-            transition: all 0.3s ease !important;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
-        }
-        
-        .stButton > button:hover {
-            background: linear-gradient(135deg, #444444 0%, #2a2a2a 100%) !important;
-            border-color: #666666 !important;
-            transform: translateY(-2px) !important;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3) !important;
-        }
-        
-        /* Enhanced Forms */
-        .stTextInput > div > div > input, .stSelectbox > div > div > select {
-            background-color: #1a1a1a !important;
-            color: #ffffff !important;
-            border: 2px solid #333333 !important;
-            border-radius: 1rem !important;
-            padding: 1rem !important;
-            transition: all 0.3s ease !important;
-        }
-        
-        .stTextInput > div > div > input:focus, .stSelectbox > div > div > select:focus {
-            border-color: #4f46e5 !important;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2) !important;
-        }
-        
-        /* Enhanced File Uploader */
-        .stFileUploader > div {
-            background-color: #1a1a1a !important;
-            color: #ffffff !important;
-            border: 3px dashed #444444 !important;
-            border-radius: 1.5rem !important;
-            padding: 3rem !important;
-            text-align: center !important;
-            transition: all 0.3s ease !important;
-        }
-        
-        .stFileUploader > div:hover {
-            border-color: #4f46e5 !important;
-            background-color: rgba(79, 70, 229, 0.1) !important;
-            transform: scale(1.02) !important;
-        }
-        
-        /* Enhanced Data Tables with Perfect Scrolling */
-        .stDataFrame {
-            background: #1a1a1a !important;
-            border: 2px solid #333333 !important;
-            border-radius: 1rem !important;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3) !important;
+            font-size: 1rem !important;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            box-shadow: var(--shadow-sm) !important;
+            backdrop-filter: blur(10px) !important;
+            position: relative !important;
             overflow: hidden !important;
         }
         
-        .stDataFrame table {
-            background-color: #1a1a1a !important;
-            color: #ffffff !important;
+        .stButton > button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s;
         }
         
-        .stDataFrame th {
-            background-color: #2a2a2a !important;
-            color: #ffffff !important;
-            border-color: #444444 !important;
-            font-weight: 600 !important;
-            padding: 12px !important;
-            position: sticky !important;
-            top: 0 !important;
-            z-index: 10 !important;
+        .stButton > button:hover {
+            background: var(--accent-bg) !important;
+            border-color: var(--accent-blue) !important;
+            transform: translateY(-2px) !important;
+            box-shadow: var(--shadow-md) !important;
+            color: var(--accent-blue) !important;
         }
         
-        .stDataFrame td {
-            background-color: #1a1a1a !important;
-            color: #ffffff !important;
-            border-color: #333333 !important;
-            padding: 10px !important;
+        .stButton > button:hover::before {
+            left: 100%;
         }
         
-        .stDataFrame tr:hover td {
-            background-color: #2a2a2a !important;
+        /* Navigation Buttons Special Styling */
+        .nav-button {
+            background: var(--gradient-accent) !important;
+            color: white !important;
+            border: none !important;
         }
         
-        /* Enhanced Scrollbar for DataFrames */
-        .stDataFrame ::-webkit-scrollbar {
-            width: 12px;
-            height: 12px;
+        .nav-button:hover {
+            transform: translateY(-3px) scale(1.05) !important;
+            box-shadow: var(--shadow-lg) !important;
         }
         
-        .stDataFrame ::-webkit-scrollbar-track {
-            background: #1a1a1a;
-            border-radius: 6px;
+        /* Forms */
+        .stTextInput > div > div > input {
+            background: var(--tertiary-bg) !important;
+            color: var(--text-primary) !important;
+            border: 2px solid var(--border-color) !important;
+            border-radius: var(--border-radius) !important;
+            padding: 1rem 1.25rem !important;
+            font-size: 1rem !important;
+            transition: all 0.3s ease !important;
+            backdrop-filter: blur(10px) !important;
         }
         
-        .stDataFrame ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #4f46e5, #3730a3);
-            border-radius: 6px;
+        .stTextInput > div > div > input:focus {
+            border-color: var(--accent-blue) !important;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
+            outline: none !important;
+            background: var(--secondary-bg) !important;
         }
         
-        .stDataFrame ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, #6366f1, #4f46e5);
+        .stTextInput > div > div > input::placeholder {
+            color: var(--text-muted) !important;
         }
         
-        /* Enhanced Success/Error Messages */
+        /* File Uploader */
+        .stFileUploader > div {
+            background: var(--tertiary-bg) !important;
+            color: var(--text-primary) !important;
+            border: 3px dashed var(--border-color) !important;
+            border-radius: var(--border-radius) !important;
+            padding: 3rem 2rem !important;
+            text-align: center !important;
+            transition: all 0.3s ease !important;
+            backdrop-filter: blur(10px) !important;
+        }
+        
+        .stFileUploader > div:hover {
+            border-color: var(--accent-blue) !important;
+            background: var(--secondary-bg) !important;
+            transform: scale(1.02) !important;
+            box-shadow: var(--shadow-md) !important;
+        }
+        
+        /* Chat Messages */
+        .stChatMessage {
+            background: var(--tertiary-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: var(--border-radius) !important;
+            color: var(--text-primary) !important;
+            margin: 1rem 0 !important;
+            box-shadow: var(--shadow-sm) !important;
+            backdrop-filter: blur(10px) !important;
+        }
+        
+        .stChatMessage[data-testid="user-message"] {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #4f46e5 100%) !important;
+            border-color: var(--accent-blue) !important;
+        }
+        
+        .stChatMessage[data-testid="assistant-message"] {
+            background: var(--secondary-bg) !important;
+            border-color: var(--border-color) !important;
+        }
+        
+        /* Success/Error/Info Messages */
         .stSuccess {
-            background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%) !important;
-            color: #ffffff !important;
-            border-radius: 1rem !important;
-            border: 2px solid #22c55e !important;
-            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+            background: linear-gradient(135deg, var(--accent-green), #059669) !important;
+            color: white !important;
+            border-radius: var(--border-radius) !important;
+            border: none !important;
+            box-shadow: var(--shadow-sm) !important;
         }
         
         .stError {
-            background: linear-gradient(135deg, #5c1c1c 0%, #4a1515 100%) !important;
-            color: #ffffff !important;
-            border-radius: 1rem !important;
-            border: 2px solid #ef4444 !important;
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2) !important;
+            background: linear-gradient(135deg, var(--accent-red), #dc2626) !important;
+            color: white !important;
+            border-radius: var(--border-radius) !important;
+            border: none !important;
+            box-shadow: var(--shadow-sm) !important;
         }
         
         .stInfo {
-            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%) !important;
-            color: #ffffff !important;
-            border-radius: 1rem !important;
-            border: 2px solid #3b82f6 !important;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2) !important;
+            background: linear-gradient(135deg, var(--accent-blue), #2563eb) !important;
+            color: white !important;
+            border-radius: var(--border-radius) !important;
+            border: none !important;
+            box-shadow: var(--shadow-sm) !important;
         }
         
         .stWarning {
-            background: linear-gradient(135deg, #92400e 0%, #78350f 100%) !important;
-            color: #ffffff !important;
-            border-radius: 1rem !important;
-            border: 2px solid #f59e0b !important;
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2) !important;
+            background: linear-gradient(135deg, var(--accent-orange), #d97706) !important;
+            color: white !important;
+            border-radius: var(--border-radius) !important;
+            border: none !important;
+            box-shadow: var(--shadow-sm) !important;
         }
         
-        /* Enhanced Metrics */
+        /* Metrics */
         .stMetric {
-            background: linear-gradient(135deg, #1a1a1a 0%, #111111 100%) !important;
-            border: 2px solid #333333 !important;
-            border-radius: 1rem !important;
+            background: var(--tertiary-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: var(--border-radius) !important;
             padding: 1.5rem !important;
             text-align: center !important;
             transition: all 0.3s ease !important;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+            box-shadow: var(--shadow-sm) !important;
+            backdrop-filter: blur(10px) !important;
         }
         
         .stMetric:hover {
             transform: translateY(-4px) !important;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3) !important;
-            border-color: #4f46e5 !important;
+            box-shadow: var(--shadow-md) !important;
+            border-color: var(--accent-blue) !important;
+        }
+        
+        /* Expanders */
+        .stExpander {
+            background: var(--tertiary-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: var(--border-radius) !important;
+            backdrop-filter: blur(10px) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+        
+        .stExpander > div > div {
+            background: var(--tertiary-bg) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.5rem;
+            background: var(--secondary-bg);
+            padding: 0.5rem;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            background: var(--tertiary-bg) !important;
+            color: var(--text-secondary) !important;
+            border-radius: var(--border-radius) !important;
+            padding: 0.875rem 2rem !important;
+            font-weight: 600 !important;
+            border: 1px solid var(--border-color) !important;
+            transition: all 0.3s ease !important;
+            backdrop-filter: blur(10px) !important;
+        }
+        
+        .stTabs [data-baseweb="tab"]:hover {
+            background: var(--accent-bg) !important;
+            color: var(--text-primary) !important;
+            transform: translateY(-2px) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background: var(--gradient-primary) !important;
+            color: white !important;
+            border-color: var(--accent-blue) !important;
+            transform: scale(1.05) !important;
+            box-shadow: var(--shadow-md) !important;
         }
         
         /* Text Elements */
-        h1, h2, h3, h4, h5, h6, p, div, span, li {
-            color: #ffffff !important;
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--text-primary) !important;
+            font-weight: 700 !important;
         }
         
-        /* Processing Info Box */
-        .processing-info {
-            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
-            border: 2px solid #3b82f6;
-            border-radius: 1rem;
-            padding: 1.5rem;
-            margin: 1rem 0;
-            font-family: 'Consolas', monospace;
-            font-size: 0.9rem;
-            white-space: pre-line;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        p, div, span, li {
+            color: var(--text-primary) !important;
         }
         
-        /* Enhanced Selectboxes */
-        .stSelectbox > div > div > select {
-            background: #1a1a1a !important;
-            color: #ffffff !important;
-            border: 2px solid #333333 !important;
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
         }
         
-        /* Enhanced Multiselect */
-        .stMultiSelect > div > div > div {
-            background: #1a1a1a !important;
-            color: #ffffff !important;
-            border: 2px solid #333333 !important;
+        ::-webkit-scrollbar-track {
+            background: var(--secondary-bg);
+            border-radius: 4px;
         }
         
-        /* Pagination Controls */
-        .pagination-controls {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 1rem;
-            margin: 1rem 0;
-            padding: 1rem;
-            background: #1a1a1a;
-            border-radius: 1rem;
-            border: 2px solid #333333;
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 4px;
         }
         
-        /* Scrollable DataFrame Container */
-        .scrollable-dataframe-container {
-            background: #1a1a1a;
-            border: 2px solid #333333;
-            border-radius: 1rem;
-            padding: 1rem;
-            margin: 1rem 0;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
         }
         
-        /* Animation for loading states */
+        /* Professional Cards */
+        .feature-card {
+            background: var(--tertiary-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--accent-blue);
+        }
+        
+        /* Loading Animation */
         @keyframes pulse {
-            0% { opacity: 1; }
+            0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
-            100% { opacity: 1; }
         }
         
         .loading {
-            animation: pulse 1.5s ease-in-out infinite;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .elite-header h1 {
+                font-size: 2.5rem;
+            }
+            
+            .elite-header p {
+                font-size: 1.1rem;
+            }
+            
+            .stButton > button {
+                padding: 0.75rem 1.5rem !important;
+                font-size: 0.9rem !important;
+            }
+        }
+        
+        /* Dark Mode Enhancements */
+        .stSelectbox > div > div {
+            background: var(--tertiary-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: var(--border-radius) !important;
+        }
+        
+        .stMultiSelect > div > div {
+            background: var(--tertiary-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: var(--border-radius) !important;
+        }
+        
+        /* Chat Input Enhancements */
+        .stChatInputContainer {
+            background: var(--tertiary-bg) !important;
+            border: 2px solid var(--border-color) !important;
+            border-radius: var(--border-radius) !important;
+            backdrop-filter: blur(10px) !important;
+        }
+        
+        .stChatInput > div > div > input {
+            background: transparent !important;
+            color: var(--text-primary) !important;
+            border: none !important;
+        }
+        
+        .stChatInput > div > div > input::placeholder {
+            color: var(--text-muted) !important;
         }
         </style>
         """, unsafe_allow_html=True)
 
-    def render_modern_landing_page(self):
-        """Render landing page"""
+    def render_landing_page(self):
+        """Render professional landing page"""
         st.markdown("""
-        <div class="modern-header">
-            <h1>🚀 Elite MultiModal AI Platform</h1>
-            <p>Advanced AI-Powered Analytics • Perfect CSV Intelligence • Document Processing • Vision AI</p>
+        <div class="elite-header">
+            <h1>🧠 Elite Document & Image AI Platform</h1>
+            <p>Advanced AI-Powered Document Processing • Computer Vision Intelligence • Professional Analytics</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -875,8 +627,9 @@ class ModernMultiModalPlatform:
                 self.render_register_form()
 
     def render_login_form(self):
-        """Render login form"""
+        """Render professional login form"""
         st.markdown("### 🔐 Welcome Back")
+        st.markdown("*Access your AI-powered document and image analysis platform*")
         
         with st.form("login_form"):
             username = st.text_input("👤 Username", placeholder="Enter your username")
@@ -891,23 +644,24 @@ class ModernMultiModalPlatform:
                         st.session_state.username = username
                         st.success(message)
                         if self.models_ready:
-                            st.success("🤖 AI Models: Ready!")
+                            st.success("🤖 AI Models: Initialized and Ready!")
                         time.sleep(2)
                         st.rerun()
                     else:
                         st.error(message)
                 else:
-                    st.error("Please fill in all fields!")
+                    st.error("Please fill in all required fields!")
 
     def render_register_form(self):
-        """Render register form"""
+        """Render professional registration form"""
         st.markdown("### ✨ Join Elite Platform")
+        st.markdown("*Create your account and unlock AI-powered document and image analytics*")
         
         with st.form("register_form"):
             full_name = st.text_input("👤 Full Name", placeholder="Enter your full name")
-            username = st.text_input("🧑‍💼 Username", placeholder="Choose a username")
-            email = st.text_input("📧 Email", placeholder="Enter your email address")
-            password = st.text_input("🔒 Password", type="password", placeholder="Create a password")
+            username = st.text_input("🧑‍💼 Username", placeholder="Choose a unique username")
+            email = st.text_input("📧 Email Address", placeholder="Enter your email address")
+            password = st.text_input("🔒 Password", type="password", placeholder="Create a secure password")
             confirm_password = st.text_input("🔐 Confirm Password", type="password", placeholder="Confirm your password")
             submitted = st.form_submit_button("✨ Create Account", use_container_width=True)
             
@@ -916,464 +670,616 @@ class ModernMultiModalPlatform:
                     if password != confirm_password:
                         st.error("Passwords don't match!")
                     elif len(password) < 6:
-                        st.error("Password must be at least 6 characters!")
+                        st.error("Password must be at least 6 characters long!")
                     elif len(username) < 3:
-                        st.error("Username must be at least 3 characters!")
+                        st.error("Username must be at least 3 characters long!")
                     else:
                         success, message = self.auth_manager.register_user(username, password, email, full_name)
                         if success:
                             st.success(message)
-                            st.info("Please sign in with your new account!")
+                            st.info("🔑 Please sign in with your new account!")
                         else:
                             st.error(message)
                 else:
-                    st.error("Please fill in all fields!")
+                    st.error("Please fill in all required fields!")
 
     def render_dashboard(self):
-        """Render main dashboard"""
+        """Render main professional dashboard"""
         user_info = self.auth_manager.get_user_info(st.session_state.username)
         
         st.markdown(f"""
-        <div class="modern-header">
+        <div class="elite-header">
             <h1>👋 Welcome, {user_info.get('full_name', st.session_state.username)}</h1>
-            <p>Elite MultiModal AI Dashboard • Perfect CSV, Document & Image Analytics</p>
+            <p>Professional AI Dashboard • Document Intelligence • Computer Vision Analytics</p>
         </div>
         """, unsafe_allow_html=True)
         
-        # Navigation
-        col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+        # Professional Navigation with only Documents and Images
+        st.markdown("### 🚀 AI Analytics Modules")
+        col1, col2, col3 = st.columns([1, 1, 2])
         
         with col1:
-            if st.button("📊 CSV Analytics", use_container_width=True):
-                st.session_state.current_page = 'csv'
-                st.rerun()
-        
-        with col2:
-            if st.button("📄 Documents", use_container_width=True):
+            if st.button("📄 Document Intelligence", use_container_width=True, key="nav_docs"):
                 st.session_state.current_page = 'documents'
                 st.rerun()
         
-        with col3:
-            if st.button("🖼️ Images", use_container_width=True):
+        with col2:
+            if st.button("🖼️ Image Intelligence", use_container_width=True, key="nav_images"):
                 st.session_state.current_page = 'images'
                 st.rerun()
         
-        with col4:
-            if st.button("🚪 Logout", use_container_width=True):
-                self.logout_user()
+        with col3:
+            col_stats, col_logout = st.columns([1, 1])
+            with col_stats:
+                # User stats
+                doc_queries = user_info.get('document_queries', 0)
+                img_queries = user_info.get('image_queries', 0)
+                st.metric("📊 Total Queries", f"{doc_queries + img_queries}")
+            
+            with col_logout:
+                if st.button("🚪 Logout", use_container_width=True):
+                    self.logout_user()
+        
+        # Feature Overview Cards
+        st.markdown("---")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            <div class="feature-card">
+                <h3>📄 Document Intelligence</h3>
+                <p>Upload PDFs and Word documents for AI-powered analysis, summarization, and intelligent Q&A.</p>
+                <strong>Features:</strong>
+                <ul style="text-align: left; padding-left: 20px;">
+                    <li>Multi-format document processing</li>
+                    <li>Intelligent content extraction</li>
+                    <li>Contextual Q&A with continuous chat</li>
+                    <li>Advanced text analysis</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="feature-card">
+                <h3>🖼️ Image Intelligence</h3>
+                <p>Upload images for computer vision analysis, OCR text extraction, and visual understanding.</p>
+                <strong>Features:</strong>
+                <ul style="text-align: left; padding-left: 20px;">
+                    <li>Advanced computer vision</li>
+                    <li>OCR text extraction</li>
+                    <li>Visual content analysis</li>
+                    <li>Intelligent image Q&A</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
         
         # Render current page
-        if st.session_state.current_page == 'csv':
-            self.render_csv_page()
-        elif st.session_state.current_page == 'documents':
+        if st.session_state.current_page == 'documents':
             self.render_documents_page()
         elif st.session_state.current_page == 'images':
             self.render_images_page()
 
-    def render_csv_page(self):
-        """Render ENHANCED CSV page with perfect dataframe display"""
-        st.markdown("## 📊 Enhanced CSV Analytics with Perfect Dataframe Display")
-        st.markdown("*View your entire dataset with smooth scrolling, pagination, and advanced controls!*")
+    def render_documents_page(self):
+        """Render Document Intelligence page with perfect continuous chat"""
+        st.markdown("## 📄 Document Intelligence Center")
+        st.markdown("*Upload and analyze your documents with advanced AI - Perfect continuous chat experience*")
         
-        col1, col2 = st.columns([2, 1])
+        if not self.models_ready:
+            st.error("❌ AI models not available. Please check your Google API key configuration.")
+            return
+        
+        # Enhanced file upload section
+        col1, col2, col3 = st.columns([2, 2, 1])
         
         with col1:
-            uploaded_file = st.file_uploader(
-                "📤 Upload ANY CSV file - Perfect Display Guaranteed!", 
-                type=["csv", "txt", "tsv", "dat"],
-                help="Upload any CSV file - see your entire dataset with perfect scrolling!"
+            uploaded_pdfs = st.file_uploader(
+                "📄 Upload PDF Documents", 
+                type="pdf", 
+                accept_multiple_files=True, 
+                key="pdf_docs",
+                help="Upload PDF files for comprehensive AI analysis"
             )
         
         with col2:
-            if st.button("🗑️ Clear Chat", key="clear_csv", use_container_width=True):
-                st.session_state.csv_messages = []
-                st.success("✅ Chat cleared!")
+            uploaded_docs = st.file_uploader(
+                "📝 Upload Word Documents", 
+                type=["docx", "doc"], 
+                accept_multiple_files=True, 
+                key="word_docs",
+                help="Upload Word documents for intelligent processing"
+            )
+        
+        with col3:
+            if st.button("🗑️ Clear Chat", key="clear_docs", use_container_width=True):
+                st.session_state.document_messages = []
+                st.success("✅ Chat history cleared!")
                 time.sleep(1)
                 st.rerun()
         
-        # ENHANCED CSV PROCESSING
-        if uploaded_file:
-            with st.spinner("🔧 Processing your CSV with enhanced display capabilities..."):
-                try:
-                    df, processing_info = self.csv_handler.read_csv_bulletproof(uploaded_file)
-                    
-                    if df is not None and not df.empty:
-                        # Store data
-                        st.session_state.csv_data = df
-                        st.session_state.csv_file_name = uploaded_file.name
-                        st.session_state.csv_processing_info = processing_info
-                        st.session_state.csv_columns = df.columns.tolist()
-                        
-                        # Create enhanced dataframe viewer
-                        st.session_state.dataframe_viewer = EnhancedDataFrameViewer(df)
-                        
-                        # Generate examples
-                        st.session_state.dynamic_examples = self.generate_dynamic_examples(df)
-                        
-                        # Success message
-                        st.success(f"🎉 Successfully processed: **{uploaded_file.name}**")
-                        
-                        # Processing details
-                        with st.expander("🔍 Processing Details"):
-                            st.markdown(f'<div class="processing-info">{processing_info}</div>', unsafe_allow_html=True)
-                        
+        # Process documents with enhanced feedback
+        if (uploaded_pdfs or uploaded_docs):
+            if st.button("🚀 Process Documents with AI", use_container_width=True):
+                with st.spinner("🧠 Processing documents with advanced AI algorithms..."):
+                    success = self.process_documents(uploaded_pdfs, uploaded_docs)
+                    if success:
+                        st.success("✅ Documents processed successfully! Ready for intelligent Q&A.")
                     else:
-                        st.error("❌ Could not process the CSV file")
-                        if processing_info:
-                            st.text(processing_info)
-                            
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-                    st.code(traceback.format_exc())
-
-        # ENHANCED DATAFRAME DISPLAY
-        if st.session_state.csv_data is not None and st.session_state.dataframe_viewer is not None:
-            # Display summary statistics
-            st.session_state.dataframe_viewer.display_summary_stats()
-            
-            # Display dataframe with enhanced controls
-            displayed_df = st.session_state.dataframe_viewer.display_with_controls("main")
-            
-            # Data Export Options
-            st.markdown("### 📥 Export Options")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                csv_data = displayed_df.to_csv(index=False)
-                st.download_button(
-                    "📁 Download Displayed Data (CSV)",
-                    csv_data,
-                    f"displayed_data_{st.session_state.csv_file_name}",
-                    "text/csv",
-                    use_container_width=True
-                )
-            
-            with col2:
-                full_csv_data = st.session_state.csv_data.to_csv(index=False)
-                st.download_button(
-                    "📊 Download Full Dataset (CSV)",
-                    full_csv_data,
-                    f"full_dataset_{st.session_state.csv_file_name}",
-                    "text/csv",
-                    use_container_width=True
-                )
-            
-            with col3:
-                if st.button("🔍 Search in Data", use_container_width=True):
-                    st.session_state.show_search = not st.session_state.get('show_search', False)
-            
-            with col4:
-                if st.button("📊 Quick Stats", use_container_width=True):
-                    st.session_state.show_quick_stats = not st.session_state.get('show_quick_stats', False)
-            
-            # Search functionality
-            if st.session_state.get('show_search', False):
-                st.markdown("### 🔍 Search in Dataset")
-                search_column = st.selectbox("Select column to search:", st.session_state.csv_data.columns)
-                search_term = st.text_input("Enter search term:")
-                
-                if search_term:
-                    try:
-                        mask = st.session_state.csv_data[search_column].astype(str).str.contains(search_term, case=False, na=False)
-                        search_results = st.session_state.csv_data[mask]
-                        
-                        if not search_results.empty:
-                            st.success(f"🎯 Found {len(search_results)} matching rows")
-                            search_viewer = EnhancedDataFrameViewer(search_results)
-                            search_viewer.display_with_controls("search")
-                        else:
-                            st.warning("No results found")
-                    except Exception as e:
-                        st.error(f"Search error: {str(e)}")
-            
-            # Quick statistics
-            if st.session_state.get('show_quick_stats', False):
-                st.markdown("### 📊 Quick Statistics")
-                
-                numeric_cols = st.session_state.csv_data.select_dtypes(include=[np.number]).columns.tolist()
-                if numeric_cols:
-                    selected_col = st.selectbox("Select numeric column:", numeric_cols)
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        st.metric("Mean", f"{st.session_state.csv_data[selected_col].mean():.2f}")
-                    with col2:
-                        st.metric("Median", f"{st.session_state.csv_data[selected_col].median():.2f}")
-                    with col3:
-                        st.metric("Min", f"{st.session_state.csv_data[selected_col].min():.2f}")
-                    with col4:
-                        st.metric("Max", f"{st.session_state.csv_data[selected_col].max():.2f}")
-                    
-                    # Distribution chart
-                    fig = px.histogram(
-                        st.session_state.csv_data, 
-                        x=selected_col,
-                        title=f"Distribution of {selected_col}",
-                        template="plotly_dark"
-                    )
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color='white')
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                        st.error("❌ Error processing documents. Please try again or check file formats.")
         
-        # PERFECT CONTINUOUS CHAT FOR CSV
-        if st.session_state.csv_data is not None:
-            st.markdown("### 💬 Chat with Your CSV Data")
+        # Show processed files with professional display
+        if st.session_state.processed_files:
+            with st.expander("📚 Processed Documents Overview", expanded=True):
+                for i, file_info in enumerate(st.session_state.processed_files, 1):
+                    st.markdown(f"**{i}.** {file_info}")
+        
+        # PERFECT CONTINUOUS CHAT FOR DOCUMENTS
+        if st.session_state.document_vector_store is not None:
+            st.markdown("### 💬 Intelligent Document Chat")
+            st.markdown("*Ask anything about your documents - Advanced AI understands context and provides detailed insights*")
             
-            # Display chat history
-            for message in st.session_state.csv_messages:
+            # Display chat history with professional styling
+            for message in st.session_state.document_messages:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
-                    
-                    if message["role"] == "assistant" and "data_result" in message:
-                        if message.get("data_result") is not None and not message["data_result"].empty:
-                            # Use enhanced viewer for chat results too
-                            chat_viewer = EnhancedDataFrameViewer(message["data_result"])
-                            chat_viewer.display_with_controls(f"chat_{len(st.session_state.csv_messages)}")
-                        
-                        if "chart" in message and message["chart"]:
-                            st.plotly_chart(message["chart"], use_container_width=True)
             
-            # Chat input
-            if prompt := st.chat_input("🔍 Ask anything about your data!", key="csv_chat"):
-                # Add user message
-                st.session_state.csv_messages.append({"role": "user", "content": prompt})
+            # Enhanced chat input
+            if prompt := st.chat_input("🔍 Ask detailed questions about your documents...", key="doc_chat"):
+                # Add user message to chat history
+                st.session_state.document_messages.append({"role": "user", "content": prompt})
                 
                 with st.chat_message("user"):
                     st.markdown(prompt)
                 
-                # Generate response
+                # Generate professional AI response
                 with st.chat_message("assistant"):
-                    with st.spinner("🧠 Analyzing your data..."):
-                        response, data_result, chart = self.process_csv_chat(prompt)
+                    with st.spinner("🧠 AI is analyzing your documents with advanced intelligence..."):
+                        response = self.process_document_chat(prompt)
                         
+                        # Display comprehensive response
                         st.markdown(response)
                         
-                        if data_result is not None and not data_result.empty:
-                            chat_viewer = EnhancedDataFrameViewer(data_result)
-                            chat_viewer.display_with_controls(f"chat_result_{len(st.session_state.csv_messages)}")
-                        
-                        if chart:
-                            st.plotly_chart(chart, use_container_width=True)
-                        
-                        st.session_state.csv_messages.append({
-                            "role": "assistant",
-                            "content": response,
-                            "data_result": data_result,
-                            "chart": chart
+                        # Store complete message in chat history
+                        st.session_state.document_messages.append({
+                            "role": "assistant", 
+                            "content": response
                         })
                         
-                        self.auth_manager.update_user_stats(st.session_state.username, "csv_queries")
+                        # Update user statistics
+                        self.auth_manager.update_user_stats(st.session_state.username, "document_queries")
             
-            # Dynamic examples
-            if st.session_state.dynamic_examples:
-                with st.expander("💡 Example Questions"):
-                    for example in st.session_state.dynamic_examples:
-                        if st.button(f"▶️ {example}", key=f"ex_{hash(example)}", use_container_width=True):
-                            st.session_state.csv_messages.append({"role": "user", "content": example})
-                            response, data_result, chart = self.process_csv_chat(example)
-                            st.session_state.csv_messages.append({
-                                "role": "assistant",
-                                "content": response,
-                                "data_result": data_result,
-                                "chart": chart
-                            })
+            # Professional example questions
+            with st.expander("💡 Professional Document Analysis Examples", expanded=False):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**📋 Content Analysis:**")
+                    content_examples = [
+                        "Provide a comprehensive summary of all documents",
+                        "What are the main themes and topics discussed?", 
+                        "Extract key findings and conclusions",
+                        "Identify important dates, numbers, and facts",
+                        "What recommendations are mentioned?",
+                        "Analyze the document structure and organization"
+                    ]
+                    for example in content_examples:
+                        if st.button(f"📄 {example}", key=f"doc_content_{hash(example)}", use_container_width=True):
+                            st.session_state.document_messages.append({"role": "user", "content": example})
+                            response = self.process_document_chat(example)
+                            st.session_state.document_messages.append({"role": "assistant", "content": response})
+                            st.rerun()
+                
+                with col2:
+                    st.markdown("**🔍 Advanced Analysis:**")
+                    advanced_examples = [
+                        "Compare arguments and viewpoints across documents",
+                        "Who are the key stakeholders mentioned?",
+                        "What are the potential risks and opportunities?",
+                        "Provide actionable insights and next steps",
+                        "Analyze sentiment and tone throughout documents",
+                        "Create an executive summary with key takeaways"
+                    ]
+                    for example in advanced_examples:
+                        if st.button(f"🔬 {example}", key=f"doc_advanced_{hash(example)}", use_container_width=True):
+                            st.session_state.document_messages.append({"role": "user", "content": example})
+                            response = self.process_document_chat(example)
+                            st.session_state.document_messages.append({"role": "assistant", "content": response})
                             st.rerun()
 
-    def generate_dynamic_examples(self, df):
-        """Generate dynamic examples"""
-        if df is None or df.empty:
-            return []
-        
-        examples = [
-            "Show me the first 10 rows",
-            "What columns are in this dataset?",
-            "How many rows and columns?",
-            "Show me data summary",
-            "Check for missing values",
-            "Find duplicate rows",
-            "Show me the entire dataset",
-            "Display all data with pagination"
-        ]
-        
-        # Add column-specific examples
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        if numeric_cols:
-            examples.extend([
-                f"What's the average of {numeric_cols[0]}?",
-                f"Show distribution of {numeric_cols[0]}",
-                f"Show all rows sorted by {numeric_cols[0]}"
-            ])
-        
-        text_cols = df.select_dtypes(include=['object']).columns.tolist()
-        if text_cols:
-            examples.extend([
-                f"Show unique values in {text_cols[0]}",
-                f"Count values by {text_cols[0]}",
-                f"Display all data grouped by {text_cols[0]}"
-            ])
-        
-        return examples
-
-    def process_csv_chat(self, question):
-        """Process CSV chat with enhanced dataframe handling"""
-        try:
-            df = st.session_state.csv_data
-            question_lower = question.lower()
-            
-            # Enhanced keyword matching for better responses
-            if any(word in question_lower for word in ["show", "display", "head", "first", "rows", "entire", "all data", "full dataset"]):
-                if any(word in question_lower for word in ["entire", "all", "full", "complete"]):
-                    # Show entire dataset
-                    response = f"📋 **Complete Dataset:** All {len(df):,} rows displayed with enhanced pagination"
-                    return response, df, None
-                else:
-                    # Show specific number of rows
-                    nums = re.findall(r'\d+', question)
-                    n = int(nums[0]) if nums else 10
-                    result = df.head(min(n, 1000))  # Max 1000 rows for performance
-                    response = f"📋 **Showing first {len(result)} rows:** (Use pagination controls to see more)"
-                    return response, result, None
-            
-            elif any(word in question_lower for word in ["columns", "column", "fields"]):
-                result = pd.DataFrame({
-                    'Column': df.columns,
-                    'Type': df.dtypes.astype(str),
-                    'Non-Null': df.count(),
-                    'Null Count': df.isnull().sum(),
-                    'Sample': [str(df[col].iloc[0]) if not df[col].empty else 'N/A' for col in df.columns]
-                })
-                response = f"📊 **Column Information:** {len(df.columns)} columns found"
-                return response, result, None
-            
-            elif any(word in question_lower for word in ["summary", "describe", "statistics", "stats"]):
-                numeric_df = df.select_dtypes(include=[np.number])
-                if not numeric_df.empty:
-                    result = numeric_df.describe()
-                    response = f"📈 **Statistical Summary:** {len(numeric_df.columns)} numeric columns"
-                    
-                    # Create a distribution chart for the first numeric column
-                    first_numeric = numeric_df.columns[0]
-                    chart = px.histogram(
-                        df, 
-                        x=first_numeric,
-                        title=f"Distribution of {first_numeric}",
-                        template="plotly_dark"
-                    )
-                    chart.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color='white')
-                    )
-                else:
-                    result = pd.DataFrame({
-                        'Info': ['Total Rows', 'Total Columns', 'Data Types'],
-                        'Value': [len(df), len(df.columns), ', '.join(df.dtypes.astype(str).unique())]
-                    })
-                    response = "📊 **Dataset Overview:** No numeric columns for statistical summary"
-                    chart = None
-                return response, result, chart
-            
-            elif any(word in question_lower for word in ["missing", "null", "na"]):
-                missing = df.isnull().sum()
-                result = pd.DataFrame({
-                    'Column': missing.index,
-                    'Missing Count': missing.values,
-                    'Missing %': round((missing.values / len(df)) * 100, 2),
-                    'Non-Missing': len(df) - missing.values
-                }).sort_values('Missing Count', ascending=False)
-                response = f"🔍 **Missing Values Analysis:** {missing.sum():,} total missing values"
-                return response, result, None
-            
-            elif any(word in question_lower for word in ["unique", "distinct"]):
-                unique_info = pd.DataFrame({
-                    'Column': df.columns,
-                    'Unique Values': [df[col].nunique() for col in df.columns],
-                    'Total Values': len(df),
-                    'Uniqueness %': [round((df[col].nunique() / len(df)) * 100, 2) for col in df.columns],
-                    'Most Common': [str(df[col].mode().iloc[0]) if not df[col].mode().empty else 'N/A' for col in df.columns]
-                })
-                response = f"🔢 **Unique Values Analysis:** {len(df.columns)} columns analyzed"
-                return response, unique_info, None
-            
-            elif any(word in question_lower for word in ["duplicate", "duplicated"]):
-                duplicates = df.duplicated()
-                dup_count = duplicates.sum()
-                if dup_count > 0:
-                    result = df[duplicates]
-                    response = f"🔍 **Duplicates Found:** {dup_count} duplicate rows (showing all with pagination)"
-                else:
-                    result = pd.DataFrame({
-                        'Info': ['Total Rows', 'Duplicate Rows', 'Unique Rows', 'Data Integrity'],
-                        'Count': [len(df), dup_count, len(df) - dup_count, 'Perfect' if dup_count == 0 else 'Issues Found']
-                    })
-                    response = "✅ **No duplicates found!** Your dataset has perfect row integrity."
-                return response, result, None
-            
-            elif "sort" in question_lower:
-                # Find column to sort by
-                sort_column = None
-                for col in df.columns:
-                    if col.lower() in question_lower:
-                        sort_column = col
-                        break
-                
-                if sort_column:
-                    ascending = not any(word in question_lower for word in ["desc", "descending", "highest", "largest", "max"])
-                    result = df.sort_values(by=sort_column, ascending=ascending)
-                    direction = "ascending" if ascending else "descending"
-                    response = f"📊 **Data sorted by {sort_column} ({direction}):** All {len(result):,} rows with pagination"
-                    return response, result, None
-            
-            else:
-                # Default response - show sample data
-                response = f"🤔 I understand you're asking: '{question}'\n\nHere's your dataset with enhanced viewing:"
-                return response, df.head(50), None  # Show more rows by default
-                
-        except Exception as e:
-            response = f"❌ Error processing question: {str(e)}\n\nHere's your data:"
-            return response, df.head(10) if df is not None else None, None
-
-    def render_documents_page(self):
-        """Render documents page"""
-        st.markdown("## 📄 Document Intelligence")
-        st.info("Document processing functionality - same as before, working perfectly!")
-
     def render_images_page(self):
-        """Render images page"""  
-        st.markdown("## 🖼️ Image Intelligence")
-        st.info("Image processing functionality - same as before, working perfectly!")
+        """Render Image Intelligence page with perfect continuous chat"""
+        st.markdown("## 🖼️ Computer Vision Intelligence Center")
+        st.markdown("*Upload and analyze images with advanced AI vision - Perfect continuous chat experience*")
+        
+        if not self.models_ready:
+            st.error("❌ AI models not available. Please check your Google API key configuration.")
+            return
+        
+        # Enhanced image upload section
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            uploaded_image = st.file_uploader(
+                "🖼️ Upload Image for Advanced AI Analysis", 
+                type=["jpg", "jpeg", "png", "gif", "bmp", "webp"],
+                help="Upload any image format for comprehensive computer vision analysis"
+            )
+        
+        with col2:
+            if st.button("🗑️ Clear Chat", key="clear_images", use_container_width=True):
+                st.session_state.image_messages = []
+                st.success("✅ Image chat history cleared!")
+                time.sleep(1)
+                st.rerun()
+        
+        # Process image with professional handling
+        if uploaded_image:
+            if st.button("🚀 Process Image with AI Vision", use_container_width=True):
+                try:
+                    image = Image.open(uploaded_image)
+                    
+                    # Professional image validation and optimization
+                    if image.size[0] > 10000 or image.size[1] > 10000:
+                        st.warning("⚠️ Large image detected. Optimizing for enhanced processing...")
+                        image.thumbnail((4096, 4096), Image.Resampling.LANCZOS)
+                    
+                    st.session_state.current_image = image
+                    st.success(f"✅ Image processed successfully: **{uploaded_image.name}**")
+                    
+                    # Professional image information display
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("📏 Width", f"{image.size[0]} px")
+                    with col2:
+                        st.metric("📐 Height", f"{image.size[1]} px")
+                    with col3:
+                        st.metric("🎨 Mode", image.mode)
+                    
+                except Exception as e:
+                    st.error(f"❌ Error processing image: {str(e)}")
+
+        # Professional image display and analysis tools
+        if st.session_state.current_image is not None:
+            col1, col2 = st.columns([3, 2])
+            
+            with col1:
+                st.markdown("### 🖼️ Current Image Analysis")
+                st.image(st.session_state.current_image, use_container_width=True, caption="AI-Ready Image")
+            
+            with col2:
+                st.markdown("### 🔧 Quick AI Actions")
+                
+                if st.button("📝 Advanced OCR Text Extraction", use_container_width=True):
+                    with st.spinner("🔍 Extracting text with advanced OCR..."):
+                        response = self.analyze_image_professional("Perform comprehensive OCR text extraction from this image. Extract all visible text with high accuracy, maintaining formatting and structure where possible.")
+                        st.session_state.image_messages.append({"role": "assistant", "content": response})
+                        st.rerun()
+                
+                if st.button("🔍 Comprehensive Visual Analysis", use_container_width=True):
+                    with st.spinner("🧠 Performing comprehensive image analysis..."):
+                        response = self.analyze_image_professional()
+                        st.session_state.image_messages.append({"role": "assistant", "content": response})
+                        st.rerun()
+                
+                if st.button("🎨 Design & Aesthetic Analysis", use_container_width=True):
+                    with st.spinner("🎨 Analyzing design elements..."):
+                        response = self.analyze_image_professional("Provide a comprehensive analysis of the design elements, visual composition, color theory, lighting, aesthetic appeal, and artistic aspects of this image.")
+                        st.session_state.image_messages.append({"role": "assistant", "content": response})
+                        st.rerun()
+                
+                if st.button("🔬 Technical Image Analysis", use_container_width=True):
+                    with st.spinner("🔬 Performing technical analysis..."):
+                        response = self.analyze_image_professional("Perform a technical analysis of this image including quality assessment, resolution details, potential compression artifacts, color accuracy, and technical specifications.")
+                        st.session_state.image_messages.append({"role": "assistant", "content": response})
+                        st.rerun()
+            
+            # PERFECT CONTINUOUS CHAT FOR IMAGES
+            st.markdown("### 💬 Intelligent Image Chat")
+            st.markdown("*Ask anything about your image - Advanced computer vision AI provides detailed visual insights*")
+            
+            # Display chat history with professional styling
+            for message in st.session_state.image_messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+            
+            # Enhanced chat input for images
+            if prompt := st.chat_input("🔍 Ask detailed questions about your image...", key="image_chat"):
+                # Add user message to chat history
+                st.session_state.image_messages.append({"role": "user", "content": prompt})
+                
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+                
+                # Generate professional AI response
+                with st.chat_message("assistant"):
+                    with st.spinner("🧠 AI vision is analyzing your image with advanced computer vision..."):
+                        response = self.analyze_image_professional(prompt)
+                        
+                        # Display comprehensive response
+                        st.markdown(response)
+                        
+                        # Store complete message in chat history
+                        st.session_state.image_messages.append({
+                            "role": "assistant", 
+                            "content": response
+                        })
+                        
+                        # Update user statistics
+                        self.auth_manager.update_user_stats(st.session_state.username, "image_queries")
+            
+            # Professional example questions for images
+            with st.expander("💡 Professional Image Analysis Examples", expanded=False):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**👁️ Visual Analysis:**")
+                    visual_examples = [
+                        "Describe all objects and people in detail",
+                        "Analyze the setting, environment, and context", 
+                        "What story does this image tell?",
+                        "Identify all colors and their psychological impact",
+                        "Analyze the composition and visual flow",
+                        "Describe the mood and emotional impact"
+                    ]
+                    for example in visual_examples:
+                        if st.button(f"👁️ {example}", key=f"img_visual_{hash(example)}", use_container_width=True):
+                            st.session_state.image_messages.append({"role": "user", "content": example})
+                            response = self.analyze_image_professional(example)
+                            st.session_state.image_messages.append({"role": "assistant", "content": response})
+                            st.rerun()
+                
+                with col2:
+                    st.markdown("**📝 Content & Technical:**")
+                    technical_examples = [
+                        "Extract and transcribe all visible text accurately",
+                        "Identify all brands, logos, and signage",
+                        "Analyze the technical quality and specifications", 
+                        "Describe the lighting and photographic technique",
+                        "Identify potential safety or compliance issues",
+                        "Provide recommendations for image improvement"
+                    ]
+                    for example in technical_examples:
+                        if st.button(f"📖 {example}", key=f"img_technical_{hash(example)}", use_container_width=True):
+                            st.session_state.image_messages.append({"role": "user", "content": example})
+                            response = self.analyze_image_professional(example)
+                            st.session_state.image_messages.append({"role": "assistant", "content": response})
+                            st.rerun()
+
+    # ==================== PROCESSING METHODS ====================
+    
+    def process_documents(self, uploaded_pdfs, uploaded_docs):
+        """Process uploaded documents with enhanced error handling"""
+        try:
+            all_text = ""
+            processed_files = []
+            
+            # Process PDFs with comprehensive extraction
+            if uploaded_pdfs:
+                for pdf_file in uploaded_pdfs:
+                    try:
+                        pdf_reader = PdfReader(pdf_file)
+                        pdf_text = ""
+                        
+                        for page_num, page in enumerate(pdf_reader.pages):
+                            page_text = page.extract_text()
+                            if page_text.strip():
+                                pdf_text += f"\n--- Page {page_num + 1} of {pdf_file.name} ---\n{page_text}\n"
+                        
+                        if pdf_text.strip():
+                            all_text += pdf_text
+                            processed_files.append(f"📄 **{pdf_file.name}** ({len(pdf_reader.pages)} pages) - PDF Document")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error reading PDF {pdf_file.name}: {str(e)}")
+            
+            # Process Word documents with comprehensive extraction
+            if uploaded_docs:
+                for doc_file in uploaded_docs:
+                    try:
+                        doc = docx.Document(doc_file)
+                        doc_text = ""
+                        para_count = 0
+                        
+                        # Extract paragraphs
+                        for paragraph in doc.paragraphs:
+                            if paragraph.text.strip():
+                                doc_text += paragraph.text + "\n"
+                                para_count += 1
+                        
+                        # Extract tables
+                        table_count = 0
+                        for table in doc.tables:
+                            table_count += 1
+                            doc_text += f"\n--- Table {table_count} ---\n"
+                            for row in table.rows:
+                                row_text = " | ".join([cell.text.strip() for cell in row.cells])
+                                if row_text.strip():
+                                    doc_text += row_text + "\n"
+                        
+                        if doc_text.strip():
+                            all_text += f"\n--- {doc_file.name} ---\n{doc_text}\n"
+                            processed_files.append(f"📝 **{doc_file.name}** ({para_count} paragraphs, {table_count} tables) - Word Document")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error reading Word document {doc_file.name}: {str(e)}")
+            
+            # Create enhanced vector store if we have content
+            if all_text.strip():
+                text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=12000,
+                    chunk_overlap=1500,
+                    length_function=len,
+                    separators=["\n\n", "\n", " ", ""]
+                )
+                text_chunks = text_splitter.split_text(all_text)
+                
+                if text_chunks:
+                    vector_store = FAISS.from_texts(text_chunks, self.embeddings)
+                    st.session_state.document_vector_store = vector_store
+                    st.session_state.processed_files = processed_files
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            st.error(f"❌ Error processing documents: {str(e)}")
+            return False
+
+    def process_document_chat(self, question):
+        """Process document chat with enhanced AI analysis"""
+        if not self.models_ready:
+            return "❌ AI models not available for document analysis. Please check configuration."
+        
+        try:
+            # Retrieve relevant document sections
+            docs = st.session_state.document_vector_store.similarity_search(question, k=6)
+            
+            if not docs:
+                return "❌ No relevant information found in the documents for your question. Please try rephrasing or ask about different topics."
+            
+            # Enhanced professional prompt template
+            prompt_template = """
+            You are an expert document analyst with advanced comprehension capabilities. Analyze the provided document context thoroughly and provide a comprehensive, professional response.
+            
+            Document Context:
+            {context}
+            
+            User Question: {question}
+            
+            Instructions:
+            - Provide a detailed, well-structured analysis
+            - Use specific examples and quotes from the documents when relevant
+            - Organize your response with clear headings and bullet points where appropriate
+            - If the question requires synthesis across multiple documents, provide comparative insights
+            - Include actionable recommendations when applicable
+            - Maintain professional tone and comprehensive coverage
+            
+            Professional Analysis:
+            """
+            
+            prompt = PromptTemplate(
+                template=prompt_template,
+                input_variables=["context", "question"]
+            )
+            
+            # Create and execute enhanced analysis chain
+            chain = load_qa_chain(self.gemini_model, chain_type="stuff", prompt=prompt)
+            
+            response = chain.invoke(
+                {"input_documents": docs, "question": question},
+                return_only_outputs=True
+            )
+            
+            return f"📚 **Professional Document Analysis:**\n\n{response['output_text']}"
+            
+        except Exception as e:
+            return f"❌ Error analyzing documents: {str(e)}. Please try rephrasing your question or check document processing."
+
+    def analyze_image_professional(self, question=""):
+        """Enhanced image analysis with professional computer vision"""
+        if st.session_state.current_image is None:
+            return "❌ No image uploaded. Please upload an image first for analysis."
+        
+        if not self.models_ready:
+            return "❌ AI vision models not available for image analysis. Please check configuration."
+        
+        try:
+            image = st.session_state.current_image
+            
+            if question:
+                prompt = f"""
+                You are an expert computer vision analyst with advanced image understanding capabilities. 
+                Analyze this image comprehensively and answer: {question}
+                
+                Provide a detailed, professional response including:
+                1. Direct and comprehensive answer to the specific question
+                2. Supporting visual evidence and observations
+                3. Technical details and specifications when relevant
+                4. Any visible text, numbers, or textual information
+                5. Contextual insights and professional recommendations
+                6. Confidence levels and potential limitations of analysis
+                
+                Maintain a professional, detailed, and insightful analytical approach.
+                """
+            else:
+                prompt = """
+                You are an expert computer vision analyst. Provide a comprehensive, professional analysis of this image.
+                
+                Include detailed analysis of:
+                
+                **Visual Content & Objects:**
+                - All visible objects, people, animals, and items
+                - Spatial relationships and arrangements
+                - Actions, activities, and interactions
+                
+                **Technical & Quality Aspects:**
+                - Image quality, resolution, and technical specifications
+                - Lighting conditions, shadows, and illumination
+                - Color palette, saturation, and visual characteristics
+                - Photographic technique and composition
+                
+                **Textual Information:**
+                - All visible text, signs, labels, and written content
+                - Numbers, dates, and numerical information
+                - Brands, logos, and identifying marks
+                
+                **Contextual Analysis:**
+                - Setting, location, and environmental context
+                - Time period indicators and cultural elements
+                - Purpose and intended use of the image
+                - Emotional tone and aesthetic qualities
+                
+                **Professional Insights:**
+                - Potential applications and use cases
+                - Notable features and unique characteristics
+                - Recommendations for optimization or improvement
+                
+                Provide a thorough, structured, and professional analysis.
+                """
+            
+            response = self.gemini_vision.generate_content([prompt, image])
+            return f"🖼️ **Expert Computer Vision Analysis:**\n\n{response.text}"
+            
+        except Exception as e:
+            return f"❌ Error analyzing image: {str(e)}. Please try uploading the image again or check the file format."
 
     def logout_user(self):
-        """Logout user"""
-        st.success("👋 Thank you for using Elite AI Platform!")
+        """Enhanced logout with professional messaging"""
+        username = st.session_state.get('username', 'User')
+        user_info = self.auth_manager.get_user_info(username)
+        
+        st.success(f"👋 Thank you for using Elite Document & Image AI Platform, {user_info.get('full_name', username)}!")
+        st.info("🔒 Your session has been securely logged out. All data has been cleared.")
+        
+        # Clear all session state securely
         for key in list(st.session_state.keys()):
             del st.session_state[key]
-        time.sleep(2)
+        
+        time.sleep(3)
         st.rerun()
 
     def run(self):
-        """Run the application"""
+        """Run the professional application"""
         try:
             if not st.session_state.authenticated:
-                self.render_modern_landing_page()
+                self.render_landing_page()
             else:
                 self.render_dashboard()
         except Exception as e:
             st.error(f"❌ Application Error: {str(e)}")
-            st.code(traceback.format_exc())
+            with st.expander("🔧 Technical Details"):
+                st.code(traceback.format_exc())
 
-# ==================== MAIN ====================
+# ==================== MAIN APPLICATION ENTRY POINT ====================
 
 if __name__ == "__main__":
     try:
-        app = ModernMultiModalPlatform()
+        app = EliteDocumentImagePlatform()
         app.run()
     except Exception as e:
-        st.error(f"❌ Critical Error: {str(e)}")
-        st.code(traceback.format_exc())
+        st.error(f"❌ Critical Application Error: {str(e)}")
+        st.info("🔄 Please refresh the page and try again.")
+        with st.expander("🛠️ Debug Information"):
+            st.code(traceback.format_exc())
