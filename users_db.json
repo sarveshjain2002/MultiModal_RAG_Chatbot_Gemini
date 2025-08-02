@@ -1,0 +1,35 @@
+{
+    "Rewa": {
+        "password": "5340b4ff213963fd7943ad2cb081cff30bc1933d28eb9ff44dfccbe27609194c",
+        "email": "Rewa@tcs.com",
+        "full_name": "Rewa",
+        "created_at": "2025-08-02T18:28:05.838304",
+        "login_count": 23,
+        "csv_queries": 16,
+        "document_queries": 9,
+        "image_queries": 9,
+        "last_login": "2025-08-02T22:46:55.910308"
+    },
+    "sj": {
+        "password": "61b2cf09e4795debe6c79942580893e50cbd5871ad26c538d20fac4c753d98e0",
+        "email": "sj@gmail.com",
+        "full_name": "SJ",
+        "created_at": "2025-08-02T20:57:16.927815",
+        "login_count": 1,
+        "csv_queries": 0,
+        "document_queries": 0,
+        "image_queries": 0,
+        "last_login": "2025-08-02T20:57:36.308274"
+    },
+    "SJ": {
+        "password": "6e86053de18ce0a1e9d873e28ba06bbde181b8bc5900b88206dd8c8575df2ff1",
+        "email": "SJ@gmail.com",
+        "full_name": "Sarvesh",
+        "created_at": "2025-08-02T22:55:27.463850",
+        "login_count": 1,
+        "csv_queries": 4,
+        "document_queries": 2,
+        "image_queries": 2,
+        "last_login": "2025-08-02T22:55:38.352720"
+    }
+}
