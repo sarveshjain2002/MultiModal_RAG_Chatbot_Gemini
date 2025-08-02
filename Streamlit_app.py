@@ -1662,13 +1662,14 @@ class ModernMultiModalPlatform:
         cleaned = raw_query.strip()
         
         # Remove markdown formatting
-        if "```
+        if "```" in cleaned:
+            # Split by triple backticks
             parts = cleaned.split("```")
             if len(parts) >= 3:
-                cleaned = parts[1].strip()
+                cleaned = parts[1]  # extract the part between triple backticks
             else:
-                cleaned = cleaned.replace("```
-        
+                cleaned = cleaned.replace("```", "")
+
         # Remove language identifiers
         if cleaned.lower().startswith("sql"):
             cleaned = cleaned[3:].strip()
@@ -2046,3 +2047,4 @@ if __name__ == "__main__":
             - **AI Configuration Status**: {AI_CONFIGURED}
             - **Config Message**: {CONFIG_MESSAGE}
             """)
+
