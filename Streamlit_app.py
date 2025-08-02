@@ -24,6 +24,7 @@ import csv
 import io
 import warnings
 import traceback
+import math
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -379,6 +380,174 @@ class ModernAuthManager:
         except Exception as e:
             print(f"Error updating user stats: {str(e)}")
 
+# ==================== ENHANCED DATAFRAME VIEWER ====================
+
+class EnhancedDataFrameViewer:
+    """Enhanced DataFrame viewer with scrolling and pagination"""
+    
+    def __init__(self, df):
+        self.df = df
+        self.rows_per_page = 50
+    
+    def display_with_controls(self, key_suffix=""):
+        """Display dataframe with enhanced controls"""
+        if self.df is None or self.df.empty:
+            st.warning("No data to display")
+            return
+        
+        total_rows = len(self.df)
+        total_pages = math.ceil(total_rows / self.rows_per_page)
+        
+        # Controls section
+        st.markdown("### 📊 Enhanced Data Viewer")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            # Rows per page selector
+            rows_per_page = st.selectbox(
+                "Rows per page:",
+                [25, 50, 100, 200, 500, 1000, "All"],
+                index=1,
+                key=f"rows_per_page_{key_suffix}"
+            )
+            
+            if rows_per_page != "All":
+                self.rows_per_page = int(rows_per_page)
+                total_pages = math.ceil(total_rows / self.rows_per_page)
+            else:
+                self.rows_per_page = total_rows
+                total_pages = 1
+        
+        with col2:
+            # Page selector
+            if total_pages > 1:
+                current_page = st.selectbox(
+                    "Page:",
+                    range(1, total_pages + 1),
+                    key=f"page_selector_{key_suffix}"
+                )
+            else:
+                current_page = 1
+                st.write("**Page:** 1 of 1")
+        
+        with col3:
+            # Display options
+            display_option = st.selectbox(
+                "Display Mode:",
+                ["Standard", "Full Width", "Compact", "Scrollable"],
+                key=f"display_mode_{key_suffix}"
+            )
+        
+        with col4:
+            # Column selector
+            if st.button("📋 Column Selector", key=f"col_selector_{key_suffix}"):
+                st.session_state[f"show_column_selector_{key_suffix}"] = not st.session_state.get(f"show_column_selector_{key_suffix}", False)
+        
+        # Column selector
+        selected_columns = list(self.df.columns)
+        if st.session_state.get(f"show_column_selector_{key_suffix}", False):
+            st.markdown("**🔍 Select Columns to Display:**")
+            selected_columns = st.multiselect(
+                "Choose columns:",
+                self.df.columns.tolist(),
+                default=self.df.columns.tolist(),
+                key=f"columns_{key_suffix}"
+            )
+        
+        if not selected_columns:
+            selected_columns = list(self.df.columns)
+        
+        # Calculate start and end indices for pagination
+        if total_pages > 1:
+            start_idx = (current_page - 1) * self.rows_per_page
+            end_idx = min(start_idx + self.rows_per_page, total_rows)
+            display_df = self.df[selected_columns].iloc[start_idx:end_idx]
+            
+            st.info(f"📄 Showing rows {start_idx + 1} to {end_idx} of {total_rows:,} total rows (Page {current_page} of {total_pages})")
+        else:
+            display_df = self.df[selected_columns]
+            st.info(f"📄 Showing all {total_rows:,} rows")
+        
+        # Display options
+        if display_option == "Full Width":
+            st.dataframe(display_df, use_container_width=True, height=600)
+        elif display_option == "Compact":
+            st.dataframe(display_df, height=400)
+        elif display_option == "Scrollable":
+            # Enhanced scrollable display
+            st.markdown("""
+            <style>
+            .scrollable-dataframe {
+                height: 600px;
+                overflow-y: scroll;
+                border: 2px solid #333333;
+                border-radius: 10px;
+                background: #1a1a1a;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            with st.container():
+                st.dataframe(display_df, use_container_width=True, height=600)
+        else:
+            st.dataframe(display_df, use_container_width=True)
+        
+        # Navigation buttons for large datasets
+        if total_pages > 1:
+            col1, col2, col3, col4, col5 = st.columns(5)
+            
+            with col1:
+                if st.button("⏪ First", disabled=(current_page == 1), key=f"first_{key_suffix}"):
+                    st.session_state[f"page_selector_{key_suffix}"] = 1
+                    st.rerun()
+            
+            with col2:
+                if st.button("◀️ Previous", disabled=(current_page == 1), key=f"prev_{key_suffix}"):
+                    if current_page > 1:
+                        st.session_state[f"page_selector_{key_suffix}"] = current_page - 1
+                        st.rerun()
+            
+            with col3:
+                st.write(f"**Page {current_page} of {total_pages}**")
+            
+            with col4:
+                if st.button("▶️ Next", disabled=(current_page == total_pages), key=f"next_{key_suffix}"):
+                    if current_page < total_pages:
+                        st.session_state[f"page_selector_{key_suffix}"] = current_page + 1
+                        st.rerun()
+            
+            with col5:
+                if st.button("⏩ Last", disabled=(current_page == total_pages), key=f"last_{key_suffix}"):
+                    st.session_state[f"page_selector_{key_suffix}"] = total_pages
+                    st.rerun()
+        
+        return display_df
+    
+    def display_summary_stats(self):
+        """Display summary statistics"""
+        if self.df is None or self.df.empty:
+            return
+        
+        st.markdown("### 📈 Dataset Summary")
+        
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            st.metric("📋 Total Rows", f"{len(self.df):,}")
+        with col2:
+            st.metric("📊 Total Columns", len(self.df.columns))
+        with col3:
+            memory_mb = self.df.memory_usage(deep=True).sum() / 1024 / 1024
+            st.metric("💾 Memory Usage", f"{memory_mb:.1f} MB")
+        with col4:
+            missing_count = self.df.isnull().sum().sum()
+            missing_pct = (missing_count / self.df.size) * 100 if self.df.size > 0 else 0
+            st.metric("❓ Missing Values", f"{missing_count:,} ({missing_pct:.1f}%)")
+        with col5:
+            duplicate_count = self.df.duplicated().sum()
+            st.metric("🔄 Duplicates", f"{duplicate_count:,}")
+
 # ==================== MAIN PLATFORM ====================
 
 class ModernMultiModalPlatform:
@@ -405,7 +574,8 @@ class ModernMultiModalPlatform:
             'csv_file_name': '',
             'csv_processing_info': '',
             'csv_columns': [],
-            'dynamic_examples': []
+            'dynamic_examples': [],
+            'dataframe_viewer': None
         }
         
         for key, default_value in defaults.items():
@@ -413,7 +583,7 @@ class ModernMultiModalPlatform:
                 st.session_state[key] = default_value
 
     def apply_css(self):
-        """Apply modern CSS"""
+        """Apply modern CSS with enhanced dataframe styling"""
         st.markdown("""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -459,7 +629,7 @@ class ModernMultiModalPlatform:
             margin: 1rem 0 0 0;
         }
         
-        /* Buttons */
+        /* Enhanced Buttons */
         .stButton > button {
             background: linear-gradient(135deg, #333333 0%, #1a1a1a 100%) !important;
             color: #ffffff !important;
@@ -468,51 +638,152 @@ class ModernMultiModalPlatform:
             padding: 0.75rem 2rem !important;
             font-weight: 600 !important;
             transition: all 0.3s ease !important;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
         }
         
         .stButton > button:hover {
             background: linear-gradient(135deg, #444444 0%, #2a2a2a 100%) !important;
             border-color: #666666 !important;
             transform: translateY(-2px) !important;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3) !important;
         }
         
-        /* Forms */
-        .stTextInput > div > div > input {
+        /* Enhanced Forms */
+        .stTextInput > div > div > input, .stSelectbox > div > div > select {
             background-color: #1a1a1a !important;
             color: #ffffff !important;
             border: 2px solid #333333 !important;
             border-radius: 1rem !important;
             padding: 1rem !important;
+            transition: all 0.3s ease !important;
         }
         
-        /* File Uploader */
+        .stTextInput > div > div > input:focus, .stSelectbox > div > div > select:focus {
+            border-color: #4f46e5 !important;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2) !important;
+        }
+        
+        /* Enhanced File Uploader */
         .stFileUploader > div {
             background-color: #1a1a1a !important;
             color: #ffffff !important;
-            border: 2px dashed #444444 !important;
-            border-radius: 1rem !important;
-            padding: 2rem !important;
+            border: 3px dashed #444444 !important;
+            border-radius: 1.5rem !important;
+            padding: 3rem !important;
             text-align: center !important;
+            transition: all 0.3s ease !important;
         }
         
-        /* Data Tables */
+        .stFileUploader > div:hover {
+            border-color: #4f46e5 !important;
+            background-color: rgba(79, 70, 229, 0.1) !important;
+            transform: scale(1.02) !important;
+        }
+        
+        /* Enhanced Data Tables with Perfect Scrolling */
         .stDataFrame {
             background: #1a1a1a !important;
             border: 2px solid #333333 !important;
             border-radius: 1rem !important;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3) !important;
+            overflow: hidden !important;
         }
         
-        /* Success/Error Messages */
+        .stDataFrame table {
+            background-color: #1a1a1a !important;
+            color: #ffffff !important;
+        }
+        
+        .stDataFrame th {
+            background-color: #2a2a2a !important;
+            color: #ffffff !important;
+            border-color: #444444 !important;
+            font-weight: 600 !important;
+            padding: 12px !important;
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 10 !important;
+        }
+        
+        .stDataFrame td {
+            background-color: #1a1a1a !important;
+            color: #ffffff !important;
+            border-color: #333333 !important;
+            padding: 10px !important;
+        }
+        
+        .stDataFrame tr:hover td {
+            background-color: #2a2a2a !important;
+        }
+        
+        /* Enhanced Scrollbar for DataFrames */
+        .stDataFrame ::-webkit-scrollbar {
+            width: 12px;
+            height: 12px;
+        }
+        
+        .stDataFrame ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+            border-radius: 6px;
+        }
+        
+        .stDataFrame ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #4f46e5, #3730a3);
+            border-radius: 6px;
+        }
+        
+        .stDataFrame ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+        }
+        
+        /* Enhanced Success/Error Messages */
         .stSuccess {
             background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%) !important;
             color: #ffffff !important;
             border-radius: 1rem !important;
+            border: 2px solid #22c55e !important;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
         }
         
         .stError {
             background: linear-gradient(135deg, #5c1c1c 0%, #4a1515 100%) !important;
             color: #ffffff !important;
             border-radius: 1rem !important;
+            border: 2px solid #ef4444 !important;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2) !important;
+        }
+        
+        .stInfo {
+            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%) !important;
+            color: #ffffff !important;
+            border-radius: 1rem !important;
+            border: 2px solid #3b82f6 !important;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2) !important;
+        }
+        
+        .stWarning {
+            background: linear-gradient(135deg, #92400e 0%, #78350f 100%) !important;
+            color: #ffffff !important;
+            border-radius: 1rem !important;
+            border: 2px solid #f59e0b !important;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2) !important;
+        }
+        
+        /* Enhanced Metrics */
+        .stMetric {
+            background: linear-gradient(135deg, #1a1a1a 0%, #111111 100%) !important;
+            border: 2px solid #333333 !important;
+            border-radius: 1rem !important;
+            padding: 1.5rem !important;
+            text-align: center !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+        }
+        
+        .stMetric:hover {
+            transform: translateY(-4px) !important;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3) !important;
+            border-color: #4f46e5 !important;
         }
         
         /* Text Elements */
@@ -525,11 +796,60 @@ class ModernMultiModalPlatform:
             background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
             border: 2px solid #3b82f6;
             border-radius: 1rem;
-            padding: 1rem;
+            padding: 1.5rem;
             margin: 1rem 0;
             font-family: 'Consolas', monospace;
             font-size: 0.9rem;
             white-space: pre-line;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+        
+        /* Enhanced Selectboxes */
+        .stSelectbox > div > div > select {
+            background: #1a1a1a !important;
+            color: #ffffff !important;
+            border: 2px solid #333333 !important;
+        }
+        
+        /* Enhanced Multiselect */
+        .stMultiSelect > div > div > div {
+            background: #1a1a1a !important;
+            color: #ffffff !important;
+            border: 2px solid #333333 !important;
+        }
+        
+        /* Pagination Controls */
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #1a1a1a;
+            border-radius: 1rem;
+            border: 2px solid #333333;
+        }
+        
+        /* Scrollable DataFrame Container */
+        .scrollable-dataframe-container {
+            background: #1a1a1a;
+            border: 2px solid #333333;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Animation for loading states */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .loading {
+            animation: pulse 1.5s ease-in-out infinite;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -653,17 +973,17 @@ class ModernMultiModalPlatform:
             self.render_images_page()
 
     def render_csv_page(self):
-        """Render BULLETPROOF CSV page"""
-        st.markdown("## 📊 Bulletproof CSV Analytics")
-        st.markdown("*Handles ANY CSV format, encoding, delimiter automatically - Guaranteed to work!*")
+        """Render ENHANCED CSV page with perfect dataframe display"""
+        st.markdown("## 📊 Enhanced CSV Analytics with Perfect Dataframe Display")
+        st.markdown("*View your entire dataset with smooth scrolling, pagination, and advanced controls!*")
         
         col1, col2 = st.columns([2, 1])
         
         with col1:
             uploaded_file = st.file_uploader(
-                "📤 Upload ANY CSV file - 100% Success Rate!", 
+                "📤 Upload ANY CSV file - Perfect Display Guaranteed!", 
                 type=["csv", "txt", "tsv", "dat"],
-                help="Upload any CSV file - our bulletproof handler will process it!"
+                help="Upload any CSV file - see your entire dataset with perfect scrolling!"
             )
         
         with col2:
@@ -673,9 +993,9 @@ class ModernMultiModalPlatform:
                 time.sleep(1)
                 st.rerun()
         
-        # BULLETPROOF CSV PROCESSING
+        # ENHANCED CSV PROCESSING
         if uploaded_file:
-            with st.spinner("🔧 Processing your CSV with bulletproof algorithms..."):
+            with st.spinner("🔧 Processing your CSV with enhanced display capabilities..."):
                 try:
                     df, processing_info = self.csv_handler.read_csv_bulletproof(uploaded_file)
                     
@@ -685,6 +1005,9 @@ class ModernMultiModalPlatform:
                         st.session_state.csv_file_name = uploaded_file.name
                         st.session_state.csv_processing_info = processing_info
                         st.session_state.csv_columns = df.columns.tolist()
+                        
+                        # Create enhanced dataframe viewer
+                        st.session_state.dataframe_viewer = EnhancedDataFrameViewer(df)
                         
                         # Generate examples
                         st.session_state.dynamic_examples = self.generate_dynamic_examples(df)
@@ -696,9 +1019,6 @@ class ModernMultiModalPlatform:
                         with st.expander("🔍 Processing Details"):
                             st.markdown(f'<div class="processing-info">{processing_info}</div>', unsafe_allow_html=True)
                         
-                        # Dataset overview
-                        self.display_csv_overview(df)
-                        
                     else:
                         st.error("❌ Could not process the CSV file")
                         if processing_info:
@@ -708,6 +1028,99 @@ class ModernMultiModalPlatform:
                     st.error(f"❌ Error: {str(e)}")
                     st.code(traceback.format_exc())
 
+        # ENHANCED DATAFRAME DISPLAY
+        if st.session_state.csv_data is not None and st.session_state.dataframe_viewer is not None:
+            # Display summary statistics
+            st.session_state.dataframe_viewer.display_summary_stats()
+            
+            # Display dataframe with enhanced controls
+            displayed_df = st.session_state.dataframe_viewer.display_with_controls("main")
+            
+            # Data Export Options
+            st.markdown("### 📥 Export Options")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                csv_data = displayed_df.to_csv(index=False)
+                st.download_button(
+                    "📁 Download Displayed Data (CSV)",
+                    csv_data,
+                    f"displayed_data_{st.session_state.csv_file_name}",
+                    "text/csv",
+                    use_container_width=True
+                )
+            
+            with col2:
+                full_csv_data = st.session_state.csv_data.to_csv(index=False)
+                st.download_button(
+                    "📊 Download Full Dataset (CSV)",
+                    full_csv_data,
+                    f"full_dataset_{st.session_state.csv_file_name}",
+                    "text/csv",
+                    use_container_width=True
+                )
+            
+            with col3:
+                if st.button("🔍 Search in Data", use_container_width=True):
+                    st.session_state.show_search = not st.session_state.get('show_search', False)
+            
+            with col4:
+                if st.button("📊 Quick Stats", use_container_width=True):
+                    st.session_state.show_quick_stats = not st.session_state.get('show_quick_stats', False)
+            
+            # Search functionality
+            if st.session_state.get('show_search', False):
+                st.markdown("### 🔍 Search in Dataset")
+                search_column = st.selectbox("Select column to search:", st.session_state.csv_data.columns)
+                search_term = st.text_input("Enter search term:")
+                
+                if search_term:
+                    try:
+                        mask = st.session_state.csv_data[search_column].astype(str).str.contains(search_term, case=False, na=False)
+                        search_results = st.session_state.csv_data[mask]
+                        
+                        if not search_results.empty:
+                            st.success(f"🎯 Found {len(search_results)} matching rows")
+                            search_viewer = EnhancedDataFrameViewer(search_results)
+                            search_viewer.display_with_controls("search")
+                        else:
+                            st.warning("No results found")
+                    except Exception as e:
+                        st.error(f"Search error: {str(e)}")
+            
+            # Quick statistics
+            if st.session_state.get('show_quick_stats', False):
+                st.markdown("### 📊 Quick Statistics")
+                
+                numeric_cols = st.session_state.csv_data.select_dtypes(include=[np.number]).columns.tolist()
+                if numeric_cols:
+                    selected_col = st.selectbox("Select numeric column:", numeric_cols)
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        st.metric("Mean", f"{st.session_state.csv_data[selected_col].mean():.2f}")
+                    with col2:
+                        st.metric("Median", f"{st.session_state.csv_data[selected_col].median():.2f}")
+                    with col3:
+                        st.metric("Min", f"{st.session_state.csv_data[selected_col].min():.2f}")
+                    with col4:
+                        st.metric("Max", f"{st.session_state.csv_data[selected_col].max():.2f}")
+                    
+                    # Distribution chart
+                    fig = px.histogram(
+                        st.session_state.csv_data, 
+                        x=selected_col,
+                        title=f"Distribution of {selected_col}",
+                        template="plotly_dark"
+                    )
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='white')
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+        
         # PERFECT CONTINUOUS CHAT FOR CSV
         if st.session_state.csv_data is not None:
             st.markdown("### 💬 Chat with Your CSV Data")
@@ -719,7 +1132,9 @@ class ModernMultiModalPlatform:
                     
                     if message["role"] == "assistant" and "data_result" in message:
                         if message.get("data_result") is not None and not message["data_result"].empty:
-                            st.dataframe(message["data_result"], use_container_width=True)
+                            # Use enhanced viewer for chat results too
+                            chat_viewer = EnhancedDataFrameViewer(message["data_result"])
+                            chat_viewer.display_with_controls(f"chat_{len(st.session_state.csv_messages)}")
                         
                         if "chart" in message and message["chart"]:
                             st.plotly_chart(message["chart"], use_container_width=True)
@@ -740,7 +1155,8 @@ class ModernMultiModalPlatform:
                         st.markdown(response)
                         
                         if data_result is not None and not data_result.empty:
-                            st.dataframe(data_result, use_container_width=True)
+                            chat_viewer = EnhancedDataFrameViewer(data_result)
+                            chat_viewer.display_with_controls(f"chat_result_{len(st.session_state.csv_messages)}")
                         
                         if chart:
                             st.plotly_chart(chart, use_container_width=True)
@@ -780,7 +1196,9 @@ class ModernMultiModalPlatform:
             "How many rows and columns?",
             "Show me data summary",
             "Check for missing values",
-            "Find duplicate rows"
+            "Find duplicate rows",
+            "Show me the entire dataset",
+            "Display all data with pagination"
         ]
         
         # Add column-specific examples
@@ -788,57 +1206,46 @@ class ModernMultiModalPlatform:
         if numeric_cols:
             examples.extend([
                 f"What's the average of {numeric_cols[0]}?",
-                f"Show distribution of {numeric_cols[0]}"
+                f"Show distribution of {numeric_cols[0]}",
+                f"Show all rows sorted by {numeric_cols[0]}"
             ])
         
         text_cols = df.select_dtypes(include=['object']).columns.tolist()
         if text_cols:
             examples.extend([
                 f"Show unique values in {text_cols[0]}",
-                f"Count values by {text_cols[0]}"
+                f"Count values by {text_cols[0]}",
+                f"Display all data grouped by {text_cols[0]}"
             ])
         
         return examples
 
-    def display_csv_overview(self, df):
-        """Display CSV overview"""
-        st.markdown("### 📊 Dataset Overview")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("📋 Rows", f"{len(df):,}")
-        with col2:
-            st.metric("📊 Columns", len(df.columns))
-        with col3:
-            missing = df.isnull().sum().sum()
-            st.metric("❓ Missing", f"{missing:,}")
-        with col4:
-            duplicates = df.duplicated().sum()
-            st.metric("🔄 Duplicates", f"{duplicates:,}")
-        
-        st.markdown("### 📋 Data Preview")
-        st.dataframe(df.head(10), use_container_width=True)
-
     def process_csv_chat(self, question):
-        """Process CSV chat"""
+        """Process CSV chat with enhanced dataframe handling"""
         try:
             df = st.session_state.csv_data
             question_lower = question.lower()
             
-            # Simple keyword matching for reliable responses
-            if any(word in question_lower for word in ["show", "display", "head", "first", "rows"]):
-                nums = re.findall(r'\d+', question)
-                n = int(nums[0]) if nums else 10
-                result = df.head(min(n, 100))
-                response = f"📋 **Showing first {len(result)} rows:**"
-                return response, result, None
+            # Enhanced keyword matching for better responses
+            if any(word in question_lower for word in ["show", "display", "head", "first", "rows", "entire", "all data", "full dataset"]):
+                if any(word in question_lower for word in ["entire", "all", "full", "complete"]):
+                    # Show entire dataset
+                    response = f"📋 **Complete Dataset:** All {len(df):,} rows displayed with enhanced pagination"
+                    return response, df, None
+                else:
+                    # Show specific number of rows
+                    nums = re.findall(r'\d+', question)
+                    n = int(nums[0]) if nums else 10
+                    result = df.head(min(n, 1000))  # Max 1000 rows for performance
+                    response = f"📋 **Showing first {len(result)} rows:** (Use pagination controls to see more)"
+                    return response, result, None
             
             elif any(word in question_lower for word in ["columns", "column", "fields"]):
                 result = pd.DataFrame({
                     'Column': df.columns,
                     'Type': df.dtypes.astype(str),
                     'Non-Null': df.count(),
+                    'Null Count': df.isnull().sum(),
                     'Sample': [str(df[col].iloc[0]) if not df[col].empty else 'N/A' for col in df.columns]
                 })
                 response = f"📊 **Column Information:** {len(df.columns)} columns found"
@@ -849,22 +1256,38 @@ class ModernMultiModalPlatform:
                 if not numeric_df.empty:
                     result = numeric_df.describe()
                     response = f"📈 **Statistical Summary:** {len(numeric_df.columns)} numeric columns"
+                    
+                    # Create a distribution chart for the first numeric column
+                    first_numeric = numeric_df.columns[0]
+                    chart = px.histogram(
+                        df, 
+                        x=first_numeric,
+                        title=f"Distribution of {first_numeric}",
+                        template="plotly_dark"
+                    )
+                    chart.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='white')
+                    )
                 else:
                     result = pd.DataFrame({
                         'Info': ['Total Rows', 'Total Columns', 'Data Types'],
                         'Value': [len(df), len(df.columns), ', '.join(df.dtypes.astype(str).unique())]
                     })
                     response = "📊 **Dataset Overview:** No numeric columns for statistical summary"
-                return response, result, None
+                    chart = None
+                return response, result, chart
             
             elif any(word in question_lower for word in ["missing", "null", "na"]):
                 missing = df.isnull().sum()
                 result = pd.DataFrame({
                     'Column': missing.index,
                     'Missing Count': missing.values,
-                    'Missing %': round((missing.values / len(df)) * 100, 2)
+                    'Missing %': round((missing.values / len(df)) * 100, 2),
+                    'Non-Missing': len(df) - missing.values
                 }).sort_values('Missing Count', ascending=False)
-                response = f"🔍 **Missing Values:** {missing.sum():,} total missing values"
+                response = f"🔍 **Missing Values Analysis:** {missing.sum():,} total missing values"
                 return response, result, None
             
             elif any(word in question_lower for word in ["unique", "distinct"]):
@@ -872,6 +1295,7 @@ class ModernMultiModalPlatform:
                     'Column': df.columns,
                     'Unique Values': [df[col].nunique() for col in df.columns],
                     'Total Values': len(df),
+                    'Uniqueness %': [round((df[col].nunique() / len(df)) * 100, 2) for col in df.columns],
                     'Most Common': [str(df[col].mode().iloc[0]) if not df[col].mode().empty else 'N/A' for col in df.columns]
                 })
                 response = f"🔢 **Unique Values Analysis:** {len(df.columns)} columns analyzed"
@@ -881,24 +1305,39 @@ class ModernMultiModalPlatform:
                 duplicates = df.duplicated()
                 dup_count = duplicates.sum()
                 if dup_count > 0:
-                    result = df[duplicates].head(20)
-                    response = f"🔍 **Duplicates Found:** {dup_count} duplicate rows"
+                    result = df[duplicates]
+                    response = f"🔍 **Duplicates Found:** {dup_count} duplicate rows (showing all with pagination)"
                 else:
                     result = pd.DataFrame({
-                        'Info': ['Total Rows', 'Duplicate Rows', 'Unique Rows'],
-                        'Count': [len(df), dup_count, len(df) - dup_count]
+                        'Info': ['Total Rows', 'Duplicate Rows', 'Unique Rows', 'Data Integrity'],
+                        'Count': [len(df), dup_count, len(df) - dup_count, 'Perfect' if dup_count == 0 else 'Issues Found']
                     })
-                    response = "✅ **No duplicates found!**"
+                    response = "✅ **No duplicates found!** Your dataset has perfect row integrity."
                 return response, result, None
             
+            elif "sort" in question_lower:
+                # Find column to sort by
+                sort_column = None
+                for col in df.columns:
+                    if col.lower() in question_lower:
+                        sort_column = col
+                        break
+                
+                if sort_column:
+                    ascending = not any(word in question_lower for word in ["desc", "descending", "highest", "largest", "max"])
+                    result = df.sort_values(by=sort_column, ascending=ascending)
+                    direction = "ascending" if ascending else "descending"
+                    response = f"📊 **Data sorted by {sort_column} ({direction}):** All {len(result):,} rows with pagination"
+                    return response, result, None
+            
             else:
-                # Default response
-                response = f"🤔 I understand you're asking: '{question}'\n\nHere's a sample of your data:"
-                return response, df.head(10), None
+                # Default response - show sample data
+                response = f"🤔 I understand you're asking: '{question}'\n\nHere's your dataset with enhanced viewing:"
+                return response, df.head(50), None  # Show more rows by default
                 
         except Exception as e:
-            response = f"❌ Error processing question: {str(e)}"
-            return response, df.head(5) if df is not None else None, None
+            response = f"❌ Error processing question: {str(e)}\n\nHere's your data:"
+            return response, df.head(10) if df is not None else None, None
 
     def render_documents_page(self):
         """Render documents page"""
