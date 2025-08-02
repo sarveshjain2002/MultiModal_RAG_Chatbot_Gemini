@@ -10,8 +10,6 @@ from PyPDF2 import PdfReader
 import google.generativeai as genai
 import docx
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-# from langchain.embeddings import GoogleGenerativeAIEmbeddings
-# from langchain.chat_models import ChatGoogleGenerativeAI
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains.question_answering import load_qa_chain
@@ -22,10 +20,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import asyncio
 import nest_asyncio
+import re
 
 # Fix for event loop issues
 nest_asyncio.apply()
-
 load_dotenv()
 
 # Set page config ONLY ONCE at the very beginning
@@ -36,18 +34,33 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Configure Google AI
+# Configure Google AI with improved secret handling
 try:
-    genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+    # Try Streamlit secrets first, then environment variables
+    if "GOOGLE_API_KEY" in st.secrets:
+        api_key = st.secrets["GOOGLE_API_KEY"]
+    else:
+        api_key = os.getenv("GOOGLE_API_KEY")
+    
+    if not api_key:
+        raise Exception("Google API Key not found in secrets or environment variables")
+    
+    genai.configure(api_key=api_key)
+    print("✅ Google AI configured successfully!")
 except Exception as e:
-    st.error(f"Google AI configuration error: {str(e)}")
+    st.error(f"❌ Google AI configuration error: {str(e)}")
 
 # Global AI Models - Initialize once and reuse
 @st.cache_resource
 def get_ai_models():
-    """Initialize and cache AI models"""
+    """Initialize and cache AI models with robust secret handling"""
     try:
-        api_key = os.getenv("GOOGLE_API_KEY")
+        # Get API key from Streamlit secrets with fallback to environment
+        if "GOOGLE_API_KEY" in st.secrets:
+            api_key = st.secrets["GOOGLE_API_KEY"]
+        else:
+            api_key = os.getenv("GOOGLE_API_KEY")
+        
         if not api_key:
             raise Exception("Google API Key not found")
         
@@ -75,21 +88,28 @@ class ModernAuthManager:
         self.ensure_users_file()
     
     def ensure_users_file(self):
+        """Ensure users database file exists"""
         if not os.path.exists(self.users_file):
             with open(self.users_file, 'w') as f:
                 json.dump({}, f)
     
     def hash_password(self, password):
+        """Hash password with salt"""
         salt = "modern_ai_platform_2025"
         return hashlib.sha256((password + salt).encode()).hexdigest()
     
     def register_user(self, username, password, email, full_name):
+        """Register new user with validation"""
         try:
             with open(self.users_file, 'r') as f:
                 users = json.load(f)
             
             if username in users:
                 return False, "Username already exists!"
+            
+            # Email validation
+            if '@' not in email or '.' not in email:
+                return False, "Please enter a valid email address!"
             
             users[username] = {
                 "password": self.hash_password(password),
@@ -99,7 +119,8 @@ class ModernAuthManager:
                 "login_count": 0,
                 "csv_queries": 0,
                 "document_queries": 0,
-                "image_queries": 0
+                "image_queries": 0,
+                "last_login": None
             }
             
             with open(self.users_file, 'w') as f:
@@ -110,6 +131,7 @@ class ModernAuthManager:
             return False, f"Registration failed: {str(e)}"
     
     def login_user(self, username, password):
+        """Login user with enhanced tracking"""
         try:
             with open(self.users_file, 'r') as f:
                 users = json.load(f)
@@ -131,6 +153,7 @@ class ModernAuthManager:
             return False, f"Login failed: {str(e)}"
     
     def get_user_info(self, username):
+        """Get user information"""
         try:
             with open(self.users_file, 'r') as f:
                 users = json.load(f)
@@ -139,6 +162,7 @@ class ModernAuthManager:
             return {}
     
     def update_user_stats(self, username, stat_type):
+        """Update user statistics"""
         try:
             with open(self.users_file, 'r') as f:
                 users = json.load(f)
@@ -148,8 +172,8 @@ class ModernAuthManager:
                 
                 with open(self.users_file, 'w') as f:
                     json.dump(users, f, indent=4)
-        except:
-            pass
+        except Exception as e:
+            print(f"Error updating user stats: {str(e)}")
 
 class ModernMultiModalPlatform:
     def __init__(self):
@@ -160,9 +184,10 @@ class ModernMultiModalPlatform:
         self.gemini_model, self.gemini_vision, self.embeddings, self.models_ready = get_ai_models()
         
         # Apply CSS immediately
-        self.apply_full_black_css()
+        self.apply_enhanced_css()
     
     def initialize_session_state(self):
+        """Initialize all session state variables"""
         defaults = {
             'authenticated': False,
             'username': '',
@@ -186,7 +211,8 @@ class ModernMultiModalPlatform:
             if key not in st.session_state:
                 st.session_state[key] = default_value
 
-    def apply_full_black_css(self):
+    def apply_enhanced_css(self):
+        """Apply enhanced CSS with modern black theme"""
         st.markdown("""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap');
@@ -194,7 +220,8 @@ class ModernMultiModalPlatform:
         :root {
             --primary-gradient: linear-gradient(135deg, #333333 0%, #1a1a1a 100%);
             --secondary-gradient: linear-gradient(135deg, #444444 0%, #222222 100%);
-            --success-gradient: linear-gradient(135deg, #333333 0%, #1a1a1a 100%);
+            --success-gradient: linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%);
+            --error-gradient: linear-gradient(135deg, #5c1c1c 0%, #4a1515 100%);
             --bg-gradient: #000000;
             --text-primary: #ffffff;
             --text-secondary: #cccccc;
@@ -204,6 +231,7 @@ class ModernMultiModalPlatform:
             --bg-card: #111111;
             --bg-card-hover: #1a1a1a;
             --border-color: #333333;
+            --accent-color: #4f46e5;
         }
         
         /* Global Black Theme */
@@ -234,17 +262,31 @@ class ModernMultiModalPlatform:
         /* Hide Streamlit Elements */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
-        .stDeployButton {display:none;}
+        .stDeployButton {display: none;}
+        header[data-testid="stHeader"] {visibility: hidden;}
         
         /* Modern Header */
         .modern-header {
-            background: #000000;
+            background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);
             padding: 4rem 2rem;
             border-radius: 0 0 3rem 3rem;
             text-align: center;
             margin: -1rem -1rem 3rem -1rem;
-            box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(255, 255, 255, 0.1);
             border: 2px solid #333333;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .modern-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 30% 50%, rgba(79, 70, 229, 0.1) 0%, transparent 50%);
+            pointer-events: none;
         }
         
         .modern-header h1 {
@@ -253,28 +295,41 @@ class ModernMultiModalPlatform:
             font-weight: 800;
             margin: 0;
             font-family: 'Poppins', sans-serif;
+            position: relative;
+            z-index: 1;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
         
         .modern-header p {
             color: #cccccc;
             font-size: 1.3rem;
             margin: 1rem 0 0 0;
+            position: relative;
+            z-index: 1;
         }
         
         /* Modern Buttons */
         .stButton > button {
-            background: #222222 !important;
+            background: linear-gradient(135deg, #333333 0%, #1a1a1a 100%) !important;
             color: #ffffff !important;
             border: 2px solid #444444 !important;
             border-radius: 1rem !important;
             padding: 0.75rem 2rem !important;
             font-weight: 600 !important;
+            font-size: 1rem !important;
             transition: all 0.3s ease !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
         }
         
         .stButton > button:hover {
-            background: #333333 !important;
+            background: linear-gradient(135deg, #444444 0%, #2a2a2a 100%) !important;
             border-color: #666666 !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2) !important;
+        }
+        
+        .stButton > button:active {
+            transform: translateY(0) !important;
         }
         
         /* Chat Messages */
@@ -283,80 +338,264 @@ class ModernMultiModalPlatform:
             border: 2px solid #333333 !important;
             border-radius: 1rem !important;
             color: #ffffff !important;
+            margin: 0.5rem 0 !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+        }
+        
+        .stChatMessage[data-testid="user-message"] {
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%) !important;
+        }
+        
+        .stChatMessage[data-testid="assistant-message"] {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
         }
         
         /* Form Styling */
         .stTextInput > div > div > input {
-            background-color: #000000 !important;
+            background-color: #1a1a1a !important;
             color: #ffffff !important;
             border: 2px solid #333333 !important;
             border-radius: 1rem !important;
+            padding: 1rem !important;
+            font-size: 1rem !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .stTextInput > div > div > input:focus {
+            border-color: var(--accent-color) !important;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2) !important;
+            outline: none !important;
         }
         
         /* File Uploader */
         .stFileUploader > div {
-            background-color: #000000 !important;
+            background-color: #1a1a1a !important;
             color: #ffffff !important;
-            border: 2px dashed #333333 !important;
+            border: 2px dashed #444444 !important;
             border-radius: 1rem !important;
+            padding: 2rem !important;
+            text-align: center !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .stFileUploader > div:hover {
+            border-color: var(--accent-color) !important;
+            background-color: rgba(79, 70, 229, 0.05) !important;
         }
         
         /* Data Tables */
         .stDataFrame {
-            background: #000000 !important;
+            background: #1a1a1a !important;
             border: 2px solid #333333 !important;
             border-radius: 1rem !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
         }
         
         .stDataFrame table {
-            background-color: #000000 !important;
+            background-color: #1a1a1a !important;
             color: #ffffff !important;
         }
         
         .stDataFrame th {
-            background-color: #111111 !important;
+            background-color: #2a2a2a !important;
             color: #ffffff !important;
-            border-color: #333333 !important;
+            border-color: #444444 !important;
+            font-weight: 600 !important;
         }
         
         .stDataFrame td {
-            background-color: #000000 !important;
+            background-color: #1a1a1a !important;
             color: #ffffff !important;
             border-color: #333333 !important;
         }
         
         /* Success/Error Messages */
         .stSuccess {
-            background: #222222 !important;
+            background: var(--success-gradient) !important;
             color: #ffffff !important;
-            border: 2px solid #444444 !important;
+            border: 2px solid #22c55e !important;
+            border-radius: 1rem !important;
         }
         
         .stError {
-            background: #330000 !important;
+            background: var(--error-gradient) !important;
             color: #ffffff !important;
-            border: 2px solid #660000 !important;
+            border: 2px solid #ef4444 !important;
+            border-radius: 1rem !important;
+        }
+        
+        .stInfo {
+            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%) !important;
+            color: #ffffff !important;
+            border: 2px solid #3b82f6 !important;
+            border-radius: 1rem !important;
         }
         
         /* Tabs */
-        .stTabs [data-baseweb="tab"] {
-            background: #222222 !important;
-            color: #ffffff !important;
-            border: 1px solid #444444 !important;
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.5rem;
+            background: transparent;
+            padding: 0.5rem;
+            border-radius: 1rem;
+            background: rgba(26, 26, 26, 0.5);
         }
         
-        h1, h2, h3, h4, h5, h6, p {
+        .stTabs [data-baseweb="tab"] {
+            background: linear-gradient(135deg, #333333 0%, #1a1a1a 100%) !important;
+            color: #ffffff !important;
+            border-radius: 1rem !important;
+            padding: 1rem 2rem !important;
+            font-weight: 600 !important;
+            border: 2px solid #444444 !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+        }
+        
+        .stTabs [data-baseweb="tab"]:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+            border-color: #666666 !important;
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background: linear-gradient(135deg, var(--accent-color) 0%, #3730a3 100%) !important;
+            border-color: var(--accent-color) !important;
+            transform: scale(1.05) !important;
+        }
+        
+        /* Metrics */
+        .stMetric {
+            background: linear-gradient(135deg, #1a1a1a 0%, #111111 100%) !important;
+            border: 2px solid #333333 !important;
+            border-radius: 1rem !important;
+            padding: 1.5rem !important;
+            text-align: center !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .stMetric:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+            border-color: #555555;
+        }
+        
+        .stMetric > div > div[data-testid="metric-container"] > div {
+            color: #ffffff !important;
+        }
+        
+        /* Expanders */
+        .stExpander {
+            background: #1a1a1a !important;
+            border: 2px solid #333333 !important;
+            border-radius: 1rem !important;
+            overflow: hidden !important;
+        }
+        
+        .stExpander > div > div {
+            background: #1a1a1a !important;
+            color: #ffffff !important;
+        }
+        
+        /* Chat Input */
+        .stChatInputContainer {
+            background: #1a1a1a !important;
+            border: 2px solid #333333 !important;
+            border-radius: 1rem !important;
+        }
+        
+        .stChatInput > div > div > input {
+            background: #1a1a1a !important;
+            color: #ffffff !important;
+            border: none !important;
+        }
+        
+        /* Sidebar */
+        .stSidebar {
+            background: #111111 !important;
+        }
+        
+        /* Spinners */
+        .stSpinner > div {
+            border-color: var(--accent-color) transparent transparent transparent !important;
+        }
+        
+        /* Text Elements */
+        h1, h2, h3, h4, h5, h6 {
+            color: #ffffff !important;
+            font-family: 'Poppins', sans-serif !important;
+        }
+        
+        p, div, span, li {
             color: #ffffff !important;
         }
         
         /* Plotly Charts */
         .js-plotly-plot {
-            background: #000000 !important;
+            background: transparent !important;
+        }
+        
+        .plotly .modebar {
+            background: rgba(26, 26, 26, 0.8) !important;
+        }
+        
+        /* Custom Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .modern-header {
+            animation: fadeIn 1s ease-out;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .modern-header h1 {
+                font-size: 2.5rem;
+            }
+            
+            .modern-header p {
+                font-size: 1.1rem;
+            }
+            
+            .stButton > button {
+                padding: 0.5rem 1rem !important;
+                font-size: 0.9rem !important;
+            }
+        }
+        
+        /* Loading States */
+        .stProgress {
+            background: #333333 !important;
+        }
+        
+        .stProgress > div > div {
+            background: var(--accent-color) !important;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #444444;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666666;
         }
         </style>
         """, unsafe_allow_html=True)
 
     def render_modern_landing_page(self):
+        """Render the modern landing page with authentication"""
         st.markdown("""
         <div class="modern-header">
             <h1>🚀 Elite MultiModal AI Platform</h1>
@@ -376,28 +615,35 @@ class ModernMultiModalPlatform:
                 self.render_modern_register_form()
 
     def render_modern_login_form(self):
+        """Render the modern login form"""
         st.markdown("### 🔐 Welcome Back")
+        st.markdown("*Sign in to access your AI-powered analytics platform*")
         
         with st.form("login_form"):
             username = st.text_input("👤 Username", placeholder="Enter your username")
             password = st.text_input("🔒 Password", type="password", placeholder="Enter your password")
-            submitted = st.form_submit_button("🚀 Sign In")
+            submitted = st.form_submit_button("🚀 Sign In", use_container_width=True)
             
-            if submitted and username and password:
-                success, message = self.auth_manager.login_user(username, password)
-                if success:
-                    st.session_state.authenticated = True
-                    st.session_state.username = username
-                    st.success(message)
-                    if self.models_ready:
-                        st.success("🤖 AI Models: Ready!")
-                    time.sleep(2)
-                    st.rerun()
+            if submitted:
+                if username and password:
+                    success, message = self.auth_manager.login_user(username, password)
+                    if success:
+                        st.session_state.authenticated = True
+                        st.session_state.username = username
+                        st.success(message)
+                        if self.models_ready:
+                            st.success("🤖 AI Models: Ready!")
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error(message)
                 else:
-                    st.error(message)
+                    st.error("Please fill in all fields!")
 
     def render_modern_register_form(self):
+        """Render the modern registration form"""
         st.markdown("### ✨ Join Elite Platform")
+        st.markdown("*Create your account and start exploring AI-powered analytics*")
         
         with st.form("register_form"):
             full_name = st.text_input("👤 Full Name", placeholder="Enter your full name")
@@ -405,7 +651,7 @@ class ModernMultiModalPlatform:
             email = st.text_input("📧 Email", placeholder="Enter your email address")
             password = st.text_input("🔒 Password", type="password", placeholder="Create a password")
             confirm_password = st.text_input("🔐 Confirm Password", type="password", placeholder="Confirm your password")
-            submitted = st.form_submit_button("✨ Create Account")
+            submitted = st.form_submit_button("✨ Create Account", use_container_width=True)
             
             if submitted:
                 if all([full_name, username, email, password, confirm_password]):
@@ -413,16 +659,20 @@ class ModernMultiModalPlatform:
                         st.error("Passwords don't match!")
                     elif len(password) < 6:
                         st.error("Password must be at least 6 characters!")
+                    elif len(username) < 3:
+                        st.error("Username must be at least 3 characters!")
                     else:
                         success, message = self.auth_manager.register_user(username, password, email, full_name)
                         if success:
                             st.success(message)
+                            st.info("Please sign in with your new account!")
                         else:
                             st.error(message)
                 else:
                     st.error("Please fill in all fields!")
 
     def render_modern_dashboard(self):
+        """Render the main dashboard"""
         user_info = self.auth_manager.get_user_info(st.session_state.username)
         
         st.markdown(f"""
@@ -432,39 +682,58 @@ class ModernMultiModalPlatform:
         </div>
         """, unsafe_allow_html=True)
         
-        # Navigation
+        # Enhanced Navigation
         col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
         
         with col1:
-            if st.button("📊 CSV Analytics"):
+            if st.button("📊 CSV Analytics", use_container_width=True):
                 st.session_state.current_page = 'csv'
                 st.rerun()
         
         with col2:
-            if st.button("📄 Documents"):
+            if st.button("📄 Documents", use_container_width=True):
                 st.session_state.current_page = 'documents'
                 st.rerun()
         
         with col3:
-            if st.button("🖼️ Images"):
+            if st.button("🖼️ Images", use_container_width=True):
                 st.session_state.current_page = 'images'
                 st.rerun()
         
         with col4:
-            col_spacer, col_logout = st.columns([3, 1])
+            col_spacer, col_profile, col_logout = st.columns([2, 1, 1])
+            with col_profile:
+                if st.button("👤 Profile", use_container_width=True):
+                    self.show_user_profile(user_info)
             with col_logout:
-                if st.button("🚪 Logout"):
+                if st.button("🚪 Logout", use_container_width=True):
                     self.logout_user()
         
         st.markdown("---")
         
-        # Render pages
+        # Render current page
         if st.session_state.current_page == 'csv':
             self.render_csv_page()
         elif st.session_state.current_page == 'documents':
             self.render_documents_page()
         elif st.session_state.current_page == 'images':
             self.render_images_page()
+
+    def show_user_profile(self, user_info):
+        """Show user profile information"""
+        with st.expander("👤 User Profile", expanded=True):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write(f"**Name:** {user_info.get('full_name', 'N/A')}")
+                st.write(f"**Username:** {user_info.get('username', st.session_state.username)}")
+                st.write(f"**Email:** {user_info.get('email', 'N/A')}")
+            
+            with col2:
+                st.write(f"**Login Count:** {user_info.get('login_count', 0)}")
+                st.write(f"**CSV Queries:** {user_info.get('csv_queries', 0)}")
+                st.write(f"**Document Queries:** {user_info.get('document_queries', 0)}")
+                st.write(f"**Image Queries:** {user_info.get('image_queries', 0)}")
 
     def generate_dynamic_examples(self, df):
         """Generate smart example questions based on CSV columns and data types"""
@@ -518,28 +787,42 @@ class ModernMultiModalPlatform:
         return examples
 
     def render_csv_page(self):
+        """Render CSV Analytics page with perfect continuous chat"""
         st.markdown("## 📊 CSV Analytics with Perfect Continuous Chat")
         
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            uploaded_file = st.file_uploader("📤 Choose CSV file for analysis", type="csv", help="Upload your dataset for AI-powered analytics")
+            uploaded_file = st.file_uploader(
+                "📤 Choose CSV file for analysis", 
+                type="csv", 
+                help="Upload your dataset for AI-powered analytics"
+            )
         
         with col2:
-            if st.button("🗑️ Clear Chat History", key="clear_csv"):
+            if st.button("🗑️ Clear Chat History", key="clear_csv", use_container_width=True):
                 st.session_state.csv_messages = []
                 st.success("✅ Chat history cleared!")
                 time.sleep(1)
                 st.rerun()
         
+        # Process uploaded CSV
         if uploaded_file:
             try:
-                df = pd.read_csv(uploaded_file)
+                # Read CSV with encoding detection
+                try:
+                    df = pd.read_csv(uploaded_file, encoding='utf-8')
+                except UnicodeDecodeError:
+                    try:
+                        df = pd.read_csv(uploaded_file, encoding='latin-1')
+                    except:
+                        df = pd.read_csv(uploaded_file, encoding='cp1252')
+                
                 st.session_state.csv_data = df
                 st.session_state.csv_file_name = uploaded_file.name
                 st.session_state.csv_columns = df.columns.tolist()
                 
-                # Generate dynamic examples based on the uploaded CSV
+                # Generate dynamic examples
                 st.session_state.dynamic_examples = self.generate_dynamic_examples(df)
                 
                 # Create database
@@ -560,14 +843,37 @@ class ModernMultiModalPlatform:
                     missing = df.isnull().sum().sum()
                     st.metric("❓ Missing Values", f"{missing:,}")
                 
-                # Enhanced data preview
+                # Enhanced data preview with tabs
                 st.markdown("### 📋 Dataset Preview")
-                st.dataframe(df.head(10), use_container_width=True)
+                tab1, tab2, tab3 = st.tabs(["📊 Sample Data", "📈 Statistics", "🔍 Column Info"])
+                
+                with tab1:
+                    st.dataframe(df.head(10), use_container_width=True)
+                
+                with tab2:
+                    numeric_df = df.select_dtypes(include=['number'])
+                    if not numeric_df.empty:
+                        st.dataframe(numeric_df.describe(), use_container_width=True)
+                    else:
+                        st.info("ℹ️ No numeric columns found for statistical analysis")
+                
+                with tab3:
+                    info_df = pd.DataFrame({
+                        'Column': df.columns,
+                        'Data Type': df.dtypes.astype(str),
+                        'Non-Null Count': df.count(),
+                        'Null Count': df.isnull().sum(),
+                        'Null %': round((df.isnull().sum() / len(df)) * 100, 2),
+                        'Unique Values': [df[col].nunique() for col in df.columns],
+                        'Sample Value': [str(df[col].dropna().iloc[0]) if not df[col].dropna().empty else 'N/A' for col in df.columns]
+                    })
+                    st.dataframe(info_df, use_container_width=True)
                 
             except Exception as e:
-                st.error(f"❌ Error loading CSV: {str(e)}")
+                st.error(f"❌ Error loading CSV file: {str(e)}")
+                st.info("Please ensure your CSV file is properly formatted and try again.")
 
-        # Perfect Continuous Chat Interface - WORKING PERFECTLY
+        # Perfect Continuous Chat Interface for CSV
         if st.session_state.csv_data is not None:
             st.markdown("### 💬 Intelligent Chat with Your CSV Data")
             
@@ -627,62 +933,102 @@ class ModernMultiModalPlatform:
             if st.session_state.dynamic_examples:
                 with st.expander("💡 Smart Example Questions (Based on Your Data)"):
                     st.markdown("**🔍 Data Exploration:**")
-                    for example in st.session_state.dynamic_examples[:6]:
-                        st.markdown(f"- \"{example}\"")
+                    col1, col2 = st.columns(2)
                     
-                    if len(st.session_state.dynamic_examples) > 6:
-                        st.markdown("**📈 Advanced Analysis:**")
-                        for example in st.session_state.dynamic_examples[6:]:
-                            st.markdown(f"- \"{example}\"")
+                    with col1:
+                        for example in st.session_state.dynamic_examples[:6]:
+                            if st.button(f"💬 {example}", key=f"ex_{hash(example)}", use_container_width=True):
+                                # Auto-execute example
+                                st.session_state.csv_messages.append({"role": "user", "content": example})
+                                response, data_result, chart = self.process_csv_chat(example)
+                                st.session_state.csv_messages.append({
+                                    "role": "assistant", 
+                                    "content": response,
+                                    "data_result": data_result,
+                                    "chart": chart
+                                })
+                                st.rerun()
+                    
+                    with col2:
+                        if len(st.session_state.dynamic_examples) > 6:
+                            st.markdown("**📈 Advanced Analysis:**")
+                            for example in st.session_state.dynamic_examples[6:12]:
+                                if st.button(f"🔬 {example}", key=f"adv_{hash(example)}", use_container_width=True):
+                                    # Auto-execute example
+                                    st.session_state.csv_messages.append({"role": "user", "content": example})
+                                    response, data_result, chart = self.process_csv_chat(example)
+                                    st.session_state.csv_messages.append({
+                                        "role": "assistant", 
+                                        "content": response,
+                                        "data_result": data_result,
+                                        "chart": chart
+                                    })
+                                    st.rerun()
 
     def render_documents_page(self):
+        """Render Document Intelligence page with perfect continuous chat"""
         st.markdown("## 📄 Document Intelligence with Perfect Continuous Chat")
         
         if not self.models_ready:
             st.error("❌ AI models not available. Please check your Google API key configuration.")
             return
         
-        # File upload section
+        # Enhanced file upload section
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            uploaded_pdfs = st.file_uploader("📄 Upload PDF Documents", type="pdf", accept_multiple_files=True, key="pdf_docs")
+            uploaded_pdfs = st.file_uploader(
+                "📄 Upload PDF Documents", 
+                type="pdf", 
+                accept_multiple_files=True, 
+                key="pdf_docs",
+                help="Upload PDF files for AI analysis"
+            )
         
         with col2:
-            uploaded_docs = st.file_uploader("📝 Upload Word Documents", type=["docx", "doc"], accept_multiple_files=True, key="word_docs")
+            uploaded_docs = st.file_uploader(
+                "📝 Upload Word Documents", 
+                type=["docx", "doc"], 
+                accept_multiple_files=True, 
+                key="word_docs",
+                help="Upload Word documents for AI analysis"
+            )
         
         with col3:
-            if st.button("🗑️ Clear Chat History", key="clear_docs"):
+            if st.button("🗑️ Clear Chat History", key="clear_docs", use_container_width=True):
                 st.session_state.document_messages = []
                 st.success("✅ Document chat history cleared!")
                 time.sleep(1)
                 st.rerun()
         
-        # Process documents
+        # Process documents with progress tracking
         if (uploaded_pdfs or uploaded_docs) and st.button("🔄 Process Documents", use_container_width=True):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
             with st.spinner("🧠 Processing documents with AI..."):
-                success = self.process_documents(uploaded_pdfs, uploaded_docs)
+                success = self.process_documents(uploaded_pdfs, uploaded_docs, progress_bar, status_text)
                 if success:
                     st.success("✅ Documents processed successfully! You can now chat with them.")
                 else:
                     st.error("❌ Error processing documents. Please try again.")
         
-        # Show processed files
+        # Show processed files with details
         if st.session_state.processed_files:
             st.markdown("### 📚 Processed Documents")
-            for file_info in st.session_state.processed_files:
-                st.write(f"- {file_info}")
+            for i, file_info in enumerate(st.session_state.processed_files, 1):
+                st.write(f"{i}. {file_info}")
         
-        # PERFECT CONTINUOUS CHAT INTERFACE FOR DOCUMENTS - LIKE CSV
+        # Perfect Continuous Chat Interface for Documents
         if st.session_state.document_vector_store is not None:
             st.markdown("### 💬 Intelligent Chat with Your Documents")
             
-            # Display chat history - EXACTLY LIKE CSV
+            # Display chat history
             for message in st.session_state.document_messages:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
             
-            # Chat input - EXACTLY LIKE CSV
+            # Chat input
             if prompt := st.chat_input("🔍 Ask anything about your documents...", key="doc_chat"):
                 # Add user message to chat history
                 st.session_state.document_messages.append({"role": "user", "content": prompt})
@@ -707,57 +1053,85 @@ class ModernMultiModalPlatform:
                         # Update user stats
                         self.auth_manager.update_user_stats(st.session_state.username, "document_queries")
             
-            # Example questions
+            # Enhanced example questions
             with st.expander("💡 Example Document Questions"):
-                st.markdown("""
-                **📋 Content Analysis:**
-                - "What are the main topics discussed in the documents?"
-                - "Summarize the key points from all documents"
-                - "What conclusions or recommendations are mentioned?"
-                - "List all important dates mentioned"
+                col1, col2 = st.columns(2)
                 
-                **🔍 Specific Information:**
-                - "What is mentioned about [specific topic]?"
-                - "Find information about [keyword or phrase]"
-                - "Who are the key people mentioned?"
-                - "What are the main findings?"
+                with col1:
+                    st.markdown("**📋 Content Analysis:**")
+                    content_examples = [
+                        "What are the main topics discussed?",
+                        "Summarize the key points from all documents",
+                        "What conclusions are mentioned?",
+                        "List all important dates mentioned"
+                    ]
+                    for example in content_examples:
+                        if st.button(f"💬 {example}", key=f"doc_content_{hash(example)}", use_container_width=True):
+                            st.session_state.document_messages.append({"role": "user", "content": example})
+                            response = self.process_document_chat(example)
+                            st.session_state.document_messages.append({"role": "assistant", "content": response})
+                            st.rerun()
                 
-                **📊 Comparative Analysis:**
-                - "Compare the main arguments across documents"
-                - "What are the differences between documents?"
-                - "What common themes appear in all documents?"
-                """)
+                with col2:
+                    st.markdown("**🔍 Specific Information:**")
+                    specific_examples = [
+                        "Find information about specific topics",
+                        "Who are the key people mentioned?",
+                        "What are the main findings?",
+                        "Compare arguments across documents"
+                    ]
+                    for example in specific_examples:
+                        if st.button(f"🔬 {example}", key=f"doc_specific_{hash(example)}", use_container_width=True):
+                            st.session_state.document_messages.append({"role": "user", "content": example})
+                            response = self.process_document_chat(example)
+                            st.session_state.document_messages.append({"role": "assistant", "content": response})
+                            st.rerun()
 
     def render_images_page(self):
+        """Render Image Intelligence page with perfect continuous chat"""
         st.markdown("## 🖼️ Image Intelligence with Perfect Continuous Chat")
         
         if not self.models_ready:
             st.error("❌ AI models not available. Please check your Google API key configuration.")
             return
         
-        # Image upload section
+        # Enhanced image upload section
         col1, col2 = st.columns(2)
         
         with col1:
-            uploaded_image = st.file_uploader("🖼️ Upload Image for Analysis", type=["jpg", "jpeg", "png", "gif", "bmp", "webp"])
+            uploaded_image = st.file_uploader(
+                "🖼️ Upload Image for Analysis", 
+                type=["jpg", "jpeg", "png", "gif", "bmp", "webp"],
+                help="Upload an image for AI-powered analysis"
+            )
         
         with col2:
-            if st.button("🗑️ Clear Chat History", key="clear_images"):
+            if st.button("🗑️ Clear Chat History", key="clear_images", use_container_width=True):
                 st.session_state.image_messages = []
                 st.success("✅ Image chat history cleared!")
                 time.sleep(1)
                 st.rerun()
         
-        # Process image
+        # Process image with validation
         if uploaded_image and st.button("🔄 Process Image", use_container_width=True):
             try:
                 image = Image.open(uploaded_image)
+                
+                # Validate image
+                if image.size[0] > 10000 or image.size[1] > 10000:
+                    st.warning("⚠️ Large image detected. Resizing for optimal processing...")
+                    image.thumbnail((4096, 4096), Image.Resampling.LANCZOS)
+                
                 st.session_state.current_image = image
-                st.success(f"✅ Image processed: {uploaded_image.name}")
+                st.success(f"✅ Image processed successfully: {uploaded_image.name}")
+                
+                # Show image info
+                st.info(f"📏 Image dimensions: {image.size[0]} x {image.size[1]} pixels")
+                
             except Exception as e:
                 st.error(f"❌ Error processing image: {str(e)}")
-        
-        # Display current image and analysis
+
+        # Display current image and analysis tools
         if st.session_state.current_image is not None:
             col1, col2 = st.columns(2)
             
@@ -771,26 +1145,30 @@ class ModernMultiModalPlatform:
                 if st.button("📝 Extract Text (OCR)", use_container_width=True):
                     with st.spinner("🔍 Extracting text..."):
                         response = self.analyze_image_perfect("Extract all text visible in this image with high accuracy. Provide the text in a structured format.")
-                        # Add to chat history automatically
                         st.session_state.image_messages.append({"role": "assistant", "content": response})
                         st.rerun()
                 
                 if st.button("🔍 Comprehensive Analysis", use_container_width=True):
                     with st.spinner("🧠 Analyzing image..."):
                         response = self.analyze_image_perfect()
-                        # Add to chat history automatically
+                        st.session_state.image_messages.append({"role": "assistant", "content": response})
+                        st.rerun()
+                
+                if st.button("🎨 Visual Elements Analysis", use_container_width=True):
+                    with st.spinner("🎨 Analyzing visual elements..."):
+                        response = self.analyze_image_perfect("Analyze the visual elements, colors, composition, lighting, and artistic aspects of this image in detail.")
                         st.session_state.image_messages.append({"role": "assistant", "content": response})
                         st.rerun()
             
-            # PERFECT CONTINUOUS CHAT INTERFACE FOR IMAGES - LIKE CSV
+            # Perfect Continuous Chat Interface for Images
             st.markdown("### 💬 Intelligent Chat with Your Image")
             
-            # Display chat history - EXACTLY LIKE CSV
+            # Display chat history
             for message in st.session_state.image_messages:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
             
-            # Chat input - EXACTLY LIKE CSV
+            # Chat input
             if prompt := st.chat_input("🔍 Ask anything about your image...", key="image_chat"):
                 # Add user message to chat history
                 st.session_state.image_messages.append({"role": "user", "content": prompt})
@@ -815,117 +1193,82 @@ class ModernMultiModalPlatform:
                         # Update user stats
                         self.auth_manager.update_user_stats(st.session_state.username, "image_queries")
             
-            # Example questions for images
+            # Enhanced example questions for images
             with st.expander("💡 Example Image Questions"):
-                st.markdown("""
-                **🖼️ Visual Analysis:**
-                - "What objects and people can you see in this image?"
-                - "Describe the setting and environment"
-                - "What are the dominant colors and visual style?"
-                - "What emotions or mood does this image convey?"
+                col1, col2 = st.columns(2)
                 
-                **📝 Text & Information:**
-                - "Extract all text visible in this image"
-                - "Read any signs, labels, or documents shown"
-                - "What brand names or logos can you identify?"
-                - "Are there any numbers, codes, or dates visible?"
+                with col1:
+                    st.markdown("**🖼️ Visual Analysis:**")
+                    visual_examples = [
+                        "What objects can you see?",
+                        "Describe the setting and environment",
+                        "What are the dominant colors?",
+                        "What mood does this convey?"
+                    ]
+                    for example in visual_examples:
+                        if st.button(f"👁️ {example}", key=f"img_visual_{hash(example)}", use_container_width=True):
+                            st.session_state.image_messages.append({"role": "user", "content": example})
+                            response = self.analyze_image_perfect(example)
+                            st.session_state.image_messages.append({"role": "assistant", "content": response})
+                            st.rerun()
                 
-                **🔍 Detailed Analysis:**
-                - "What safety issues or hazards can you identify?"
-                - "Describe the lighting and time of day"
-                - "What can you tell about the photo quality and composition?"
-                - "Are there any interesting or unusual details?"
-                """)
+                with col2:
+                    st.markdown("**📝 Text & Details:**")
+                    text_examples = [
+                        "Extract all visible text",
+                        "Read any signs or labels",
+                        "Identify brand names or logos",
+                        "Describe interesting details"
+                    ]
+                    for example in text_examples:
+                        if st.button(f"📖 {example}", key=f"img_text_{hash(example)}", use_container_width=True):
+                            st.session_state.image_messages.append({"role": "user", "content": example})
+                            response = self.analyze_image_perfect(example)
+                            st.session_state.image_messages.append({"role": "assistant", "content": response})
+                            st.rerun()
 
-    # CSV Processing Methods - WORKING PERFECTLY
+    # CSV Processing Methods - Enhanced and Robust
     def process_csv_chat(self, question):
-        """Enhanced CSV chat processing with your working logic"""
+        """Enhanced CSV chat processing with intelligent routing"""
         try:
             df = st.session_state.csv_data
             
-            # First, try to handle with AI if available
+            # First, try AI-powered SQL generation if models are available
             if self.models_ready:
-                # Try to generate and execute SQL query
                 result = self.execute_csv_query_safe(question)
                 if result.get('success', False):
                     result_df = result['result']
-                    response = f"✅ **Query executed successfully!**\n📊 Found **{len(result_df):,}** records"
+                    response = f"✅ **AI Query executed successfully!**\n📊 Found **{len(result_df):,}** records"
                     
-                    # Create visualization if appropriate
-                    chart = self.create_chart_if_applicable(result_df)
+                    # Create intelligent visualization
+                    chart = self.create_intelligent_chart(result_df, question)
                     return response, result_df, chart
             
-            # Fallback to keyword-based processing
+            # Fallback to keyword-based processing with enhanced responses
             question_lower = question.lower()
             
-            if any(keyword in question_lower for keyword in ["show data", "first", "head", "rows"]):
-                # Extract number if mentioned
-                num_rows = 10
-                numbers = [int(word) for word in question.split() if word.isdigit()]
-                if numbers:
-                    num_rows = min(numbers[0], 100)  # Cap at 100 rows
-                
-                result_df = df.head(num_rows)
-                response = f"📋 **Showing first {len(result_df)} rows of your dataset:**"
-                return response, result_df, None
-                
-            elif any(keyword in question_lower for keyword in ["columns", "column names", "fields"]):
-                columns_info = pd.DataFrame({
-                    'Column': df.columns,
-                    'Data Type': df.dtypes.astype(str),
-                    'Non-Null Count': df.count(),
-                    'Sample Value': [str(df[col].dropna().iloc[0]) if not df[col].dropna().empty else 'N/A' for col in df.columns]
-                })
-                response = f"📊 **Dataset Column Information:**\n- Total Columns: **{len(df.columns)}**"
-                return response, columns_info, None
-                
-            elif any(keyword in question_lower for keyword in ["summary", "describe", "statistics", "stats"]):
-                try:
-                    summary_df = df.describe(include='all').fillna('')
-                    response = f"📈 **Complete Data Summary:**"
-                    return response, summary_df, None
-                except:
-                    info_df = pd.DataFrame({
-                        'Column': df.columns,
-                        'Type': df.dtypes.astype(str),
-                        'Count': df.count(),
-                        'Unique': [df[col].nunique() for col in df.columns]
-                    })
-                    response = f"📊 **Dataset Overview:**"
-                    return response, info_df, None
-                    
-            elif any(keyword in question_lower for keyword in ["missing", "null", "empty"]):
-                missing_data = df.isnull().sum()
-                missing_df = pd.DataFrame({
-                    'Column': missing_data.index,
-                    'Missing Count': missing_data.values,
-                    'Missing Percentage': round((missing_data.values / len(df)) * 100, 2),
-                    'Data Type': df.dtypes.astype(str)
-                }).sort_values('Missing Count', ascending=False)
-                
-                response = f"🔍 **Missing Values Analysis:**\n- Total missing values: **{missing_data.sum()}**"
-                return response, missing_df, None
-                
-            elif any(keyword in question_lower for keyword in ["unique", "distinct"]):
-                unique_info = pd.DataFrame({
-                    'Column': df.columns,
-                    'Unique Values': [df[col].nunique() for col in df.columns],
-                    'Total Values': len(df),
-                    'Uniqueness %': [round((df[col].nunique() / len(df)) * 100, 2) for col in df.columns],
-                    'Data Type': df.dtypes.astype(str)
-                })
-                response = f"🔢 **Unique Values Analysis:**"
-                return response, unique_info, None
-                
+            if any(keyword in question_lower for keyword in ["show data", "first", "head", "rows", "sample", "preview"]):
+                return self.handle_data_display_query(question, df)
+            elif any(keyword in question_lower for keyword in ["columns", "column names", "fields", "structure"]):
+                return self.handle_column_info_query(df)
+            elif any(keyword in question_lower for keyword in ["summary", "describe", "statistics", "stats", "overview"]):
+                return self.handle_summary_query(df)
+            elif any(keyword in question_lower for keyword in ["missing", "null", "empty", "na", "nan"]):
+                return self.handle_missing_values_query(df)
+            elif any(keyword in question_lower for keyword in ["unique", "distinct", "different"]):
+                return self.handle_unique_values_query(df)
+            elif any(keyword in question_lower for keyword in ["duplicate", "duplicated", "repeated"]):
+                return self.handle_duplicate_query(df)
+            elif any(keyword in question_lower for keyword in ["correlation", "corr", "relationship"]):
+                return self.handle_correlation_query(df)
             else:
-                # For any other question, try natural language processing
+                # Try AI-powered general analysis
                 if self.models_ready:
                     try:
-                        # Use AI to understand the question and generate response
-                        ai_response = self.generate_ai_response(question, df)
+                        ai_response = self.generate_enhanced_ai_response(question, df)
                         return ai_response, df.head(10), None
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"AI analysis error: {str(e)}")
                 
                 # Final fallback
                 response = f"🤔 **I understand you're asking:** '{question}'\n\nLet me show you a sample of your data to help:"
@@ -934,71 +1277,277 @@ class ModernMultiModalPlatform:
         except Exception as e:
             return f"❌ Error processing question: {str(e)}\n\nHere's a sample of your data:", df.head(5) if df is not None else None, None
 
-    def generate_ai_response(self, question, df):
-        """Generate AI response for complex questions"""
+    def handle_data_display_query(self, question, df):
+        """Handle data display queries with number extraction"""
+        num_rows = 10
+        numbers = re.findall(r'\d+', question)
+        if numbers:
+            num_rows = min(int(numbers[0]), 100)  # Cap at 100 rows
+        
+        result_df = df.head(num_rows)
+        response = f"📋 **Displaying first {len(result_df)} rows:**\n- Dataset has **{len(df):,}** total rows and **{len(df.columns)}** columns"
+        return response, result_df, None
+
+    def handle_column_info_query(self, df):
+        """Handle column information queries"""
+        columns_info = pd.DataFrame({
+            'Column Name': df.columns,
+            'Data Type': df.dtypes.astype(str),
+            'Non-Null Count': df.count(),
+            'Null Count': df.isnull().sum(),
+            'Null %': round((df.isnull().sum() / len(df)) * 100, 2),
+            'Unique Values': [df[col].nunique() for col in df.columns],
+            'Sample Value': [str(df[col].dropna().iloc[0]) if not df[col].dropna().empty else 'N/A' for col in df.columns]
+        })
+        response = f"📊 **Complete Column Information:**\n- Total Columns: **{len(df.columns)}**\n- Dataset Shape: **{df.shape[0]:,} rows × {df.shape[1]} columns**"
+        return response, columns_info, None
+
+    def handle_summary_query(self, df):
+        """Handle summary statistics queries"""
+        try:
+            numeric_df = df.select_dtypes(include=['number'])
+            if not numeric_df.empty:
+                summary_df = numeric_df.describe()
+                response = f"📈 **Statistical Summary of {len(numeric_df.columns)} numeric columns:**"
+                return response, summary_df, None
+            else:
+                info_df = pd.DataFrame({
+                    'Column': df.columns,
+                    'Data Type': df.dtypes.astype(str),
+                    'Count': df.count(),
+                    'Unique Values': [df[col].nunique() for col in df.columns],
+                    'Most Frequent': [str(df[col].mode().iloc[0]) if not df[col].mode().empty else 'N/A' for col in df.columns],
+                    'Most Frequent Count': [df[col].value_counts().iloc[0] if not df[col].empty else 0 for col in df.columns]
+                })
+                response = f"📊 **Dataset Overview:**\n- No numeric columns for statistical summary\n- Showing general information"
+                return response, info_df, None
+        except Exception as e:
+            response = f"📊 **Basic Dataset Information:**"
+            basic_info = pd.DataFrame({
+                'Metric': ['Total Rows', 'Total Columns', 'Memory Usage (MB)'],
+                'Value': [len(df), len(df.columns), round(df.memory_usage(deep=True).sum() / 1024 / 1024, 2)]
+            })
+            return response, basic_info, None
+
+    def handle_missing_values_query(self, df):
+        """Handle missing values analysis"""
+        missing_data = df.isnull().sum()
+        missing_df = pd.DataFrame({
+            'Column': missing_data.index,
+            'Missing Count': missing_data.values,
+            'Missing Percentage': round((missing_data.values / len(df)) * 100, 2),
+            'Data Type': df.dtypes.astype(str),
+            'Total Values': len(df)
+        }).sort_values('Missing Count', ascending=False)
+        
+        total_missing = missing_data.sum()
+        total_values = df.size
+        response = f"🔍 **Missing Values Analysis:**\n- Total missing: **{total_missing:,}** out of **{total_values:,}** values (**{(total_missing/total_values)*100:.2f}%**)"
+        return response, missing_df, None
+
+    def handle_unique_values_query(self, df):
+        """Handle unique values analysis"""
+        unique_info = pd.DataFrame({
+            'Column': df.columns,
+            'Unique Values': [df[col].nunique() for col in df.columns],
+            'Total Values': len(df),
+            'Uniqueness %': [round((df[col].nunique() / len(df)) * 100, 2) for col in df.columns],
+            'Data Type': df.dtypes.astype(str),
+            'Most Common': [str(df[col].mode().iloc[0]) if not df[col].mode().empty else 'N/A' for col in df.columns]
+        }).sort_values('Unique Values', ascending=False)
+        
+        response = f"🔢 **Unique Values Analysis across {len(df.columns)} columns:**"
+        return response, unique_info, None
+
+    def handle_duplicate_query(self, df):
+        """Handle duplicate analysis"""
+        duplicates = df.duplicated()
+        duplicate_count = duplicates.sum()
+        
+        if duplicate_count > 0:
+            duplicate_rows = df[duplicates].head(20)  # Show max 20 duplicates
+            response = f"🔍 **Duplicate Analysis:**\n- Found **{duplicate_count}** duplicate rows\n- Showing first 20 duplicates:"
+            return response, duplicate_rows, None
+        else:
+            info_df = pd.DataFrame({
+                'Analysis': ['Total Rows', 'Duplicate Rows', 'Unique Rows', 'Duplicate Percentage'],
+                'Result': [len(df), duplicate_count, len(df) - duplicate_count, f"{(duplicate_count/len(df))*100:.2f}%"]
+            })
+            response = f"✅ **No duplicate rows found!**"
+            return response, info_df, None
+
+    def handle_correlation_query(self, df):
+        """Handle correlation analysis"""
+        numeric_df = df.select_dtypes(include=['number'])
+        if len(numeric_df.columns) < 2:
+            response = "❌ **Correlation analysis requires at least 2 numeric columns**"
+            return response, None, None
+        
+        correlation_matrix = numeric_df.corr()
+        response = f"📊 **Correlation Analysis of {len(numeric_df.columns)} numeric columns:**"
+        
+        # Create correlation heatmap
+        try:
+            import plotly.figure_factory as ff
+            chart = ff.create_annotated_heatmap(
+                z=correlation_matrix.values,
+                x=list(correlation_matrix.columns),
+                y=list(correlation_matrix.columns),
+                annotation_text=correlation_matrix.round(2).values,
+                showscale=True,
+                colorscale='RdBu'
+            )
+            chart.update_layout(
+                title="Correlation Matrix",
+                template="plotly_dark",
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white')
+            )
+            return response, correlation_matrix, chart
+        except:
+            return response, correlation_matrix, None
+
+    def generate_enhanced_ai_response(self, question, df):
+        """Generate enhanced AI response for complex questions"""
         if not self.models_ready:
             return "❌ AI models not available for complex analysis."
         
-        # Create a summary of the dataset for AI context
+        # Create comprehensive dataset summary
         data_summary = f"""
-        Dataset Info:
-        - Rows: {len(df)}
+        Dataset Analysis:
+        - Shape: {df.shape[0]:,} rows × {df.shape[1]} columns
         - Columns: {', '.join(df.columns.tolist())}
         - Data types: {dict(df.dtypes.astype(str))}
-        - Sample data: 
+        - Missing values: {df.isnull().sum().sum()} total
+        - Memory usage: {df.memory_usage(deep=True).sum() / 1024 / 1024:.1f} MB
+        - Numeric columns: {len(df.select_dtypes(include=['number']).columns)}
+        - Categorical columns: {len(df.select_dtypes(include=['object']).columns)}
+        
+        Sample data (first 3 rows):
         {df.head(3).to_string()}
         """
         
         prompt = f"""
-        You are a data analyst. Answer this question about the dataset: {question}
+        You are an expert data analyst. Analyze this question about the dataset and provide insights: "{question}"
         
         {data_summary}
         
-        Provide a helpful response about the data. If you need to show specific data, suggest what to look for.
-        Keep the response concise and informative.
+        Provide a comprehensive response that:
+        1. Directly answers the question if possible
+        2. Suggests relevant data exploration approaches
+        3. Identifies potential insights or patterns
+        4. Recommends specific analyses or visualizations
+        5. Keep the response informative and actionable
+        
+        Format your response professionally with clear sections.
         """
         
         try:
             response = self.gemini_model.invoke(prompt)
-            return f"🤖 **AI Analysis:**\n\n{response.content}"
-        except:
-            return f"🤔 I understand you're asking about: '{question}'. Here's what I can show you:"
+            return f"🤖 **AI Data Analyst:**\n\n{response.content}"
+        except Exception as e:
+            return f"🤔 I understand you're asking about: '{question}'. Here's a sample of your data to help you explore further."
 
-    def create_chart_if_applicable(self, result_df):
-        """Create chart if the result data is suitable for visualization"""
-        if result_df is None or result_df.empty or len(result_df.columns) != 2:
+    def create_intelligent_chart(self, result_df, question):
+        """Create intelligent visualizations based on query results and context"""
+        if result_df is None or result_df.empty:
             return None
         
         try:
-            col1, col2 = result_df.columns
-            
-            # Only create chart for reasonable number of rows
-            if len(result_df) > 50:
+            # Only create charts for reasonable data sizes
+            if len(result_df) > 50 or len(result_df.columns) < 1:
                 return None
             
-            # Check if second column is numeric
-            if result_df[col2].dtype.kind in 'biufc':  # numeric types
-                chart = px.bar(
-                    result_df, 
-                    x=col1, 
-                    y=col2,
-                    title=f"{col2} by {col1}",
-                    template="plotly_dark"
-                )
-                chart.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='white'),
-                    title=dict(font=dict(color='white'))
-                )
-                return chart
-        except Exception:
+            question_lower = question.lower()
+            
+            # Determine chart type based on data structure and question context
+            if len(result_df.columns) == 2:
+                col1, col2 = result_df.columns
+                
+                # Check if we should create a specific chart type
+                if result_df[col2].dtype.kind in 'biufc':  # numeric
+                    if any(word in question_lower for word in ['trend', 'time', 'date', 'over time']):
+                        # Line chart for trends
+                        chart = px.line(
+                            result_df, 
+                            x=col1, 
+                            y=col2,
+                            title=f"{col2} Trend over {col1}",
+                            template="plotly_dark"
+                        )
+                    elif any(word in question_lower for word in ['distribution', 'histogram', 'frequency']):
+                        # Histogram for distributions
+                        chart = px.histogram(
+                            result_df,
+                            x=col2,
+                            title=f"Distribution of {col2}",
+                            template="plotly_dark"
+                        )
+                    else:
+                        # Default bar chart
+                        chart = px.bar(
+                            result_df, 
+                            x=col1, 
+                            y=col2,
+                            title=f"{col2} by {col1}",
+                            template="plotly_dark"
+                        )
+                    
+                    # Apply dark theme styling
+                    chart.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='white'),
+                        title=dict(font=dict(color='white', size=16)),
+                        xaxis=dict(gridcolor='#444444'),
+                        yaxis=dict(gridcolor='#444444')
+                    )
+                    return chart
+            
+            elif len(result_df.columns) == 1:
+                # Single column analysis
+                col = result_df.columns[0]
+                if result_df[col].dtype.kind in 'biufc':  # numeric
+                    # Create histogram for single numeric column
+                    chart = px.histogram(
+                        result_df,
+                        x=col,
+                        title=f"Distribution of {col}",
+                        template="plotly_dark"
+                    )
+                    chart.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='white'),
+                        title=dict(font=dict(color='white', size=16))
+                    )
+                    return chart
+                else:
+                    # Create bar chart for categorical data
+                    value_counts = result_df[col].value_counts().head(10)
+                    chart = px.bar(
+                        x=value_counts.index,
+                        y=value_counts.values,
+                        title=f"Top Values in {col}",
+                        template="plotly_dark"
+                    )
+                    chart.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='white'),
+                        title=dict(font=dict(color='white', size=16))
+                    )
+                    return chart
+            
+        except Exception as e:
+            print(f"Chart creation error: {str(e)}")
             pass
         
         return None
 
     def execute_csv_query_safe(self, question):
-        """Execute CSV query safely with improved error handling"""
+        """Execute CSV query safely with enhanced error handling"""
         if st.session_state.csv_data is None:
             return {"success": False, "error": "No CSV data loaded"}
         
@@ -1007,15 +1556,13 @@ class ModernMultiModalPlatform:
                 return {"success": False, "error": "AI models not available"}
             
             df = st.session_state.csv_data
-            sql_query = self.generate_sql_query_improved(question, df)
-            cleaned_query = self.clean_sql_query(sql_query)
+            sql_query = self.generate_enhanced_sql_query(question, df)
+            cleaned_query = self.clean_sql_query_robust(sql_query)
             
-            # Execute query
-            connection = sqlite3.connect("analytics_db.db")
+            # Execute query with timeout protection
+            connection = sqlite3.connect(f"{st.session_state.db_name}.db")
             result_df = pd.read_sql_query(cleaned_query, connection)
             connection.close()
-            
-            self.auth_manager.update_user_stats(st.session_state.username, "csv_queries")
             
             return {
                 'sql_query': cleaned_query,
@@ -1026,27 +1573,41 @@ class ModernMultiModalPlatform:
         except Exception as e:
             return {'error': str(e), 'success': False}
 
-    def generate_sql_query_improved(self, question, df):
-        """Generate improved SQL query with better prompting"""
+    def generate_enhanced_sql_query(self, question, df):
+        """Generate enhanced SQL query with better AI prompting"""
         columns = df.columns.tolist()
         dtypes = {col: str(dtype) for col, dtype in df.dtypes.items()}
         sample_data = df.head(3).to_string()
         
-        prompt = f"""
-        You are a SQL expert. Generate a clean, executable SQL query to answer this question: "{question}"
+        # Create column-safe names for SQL
+        safe_columns = {}
+        for col in columns:
+            if ' ' in col or '-' in col or col.lower() in ['order', 'group', 'select', 'where']:
+                safe_columns[col] = f'"{col}"'
+            else:
+                safe_columns[col] = col
         
-        Database Information:
+        prompt = f"""
+        You are an expert SQL developer. Generate a clean, executable SQLite query to answer: "{question}"
+        
+        Database Schema:
         - Table name: data_table
-        - Columns and types: {dtypes}
-        - Sample data:
+        - Columns: {list(safe_columns.values())}
+        - Data types: {dtypes}
+        
+        Sample data for context:
         {sample_data}
         
-        Rules:
-        1. Return ONLY the SQL query, no explanations or formatting
+        SQL Generation Rules:
+        1. Return ONLY the SQL query, no explanations
         2. Use proper SQLite syntax
-        3. Use double quotes for column names with spaces
-        4. Limit results to reasonable numbers (use LIMIT clause)
-        5. Handle case-insensitive searches with LOWER() function
+        3. Use double quotes for column names with spaces: {safe_columns}
+        4. Include LIMIT clause for large results (max 1000 rows)
+        5. Use LOWER() for case-insensitive text searches
+        6. Handle NULL values appropriately
+        7. Use appropriate aggregation functions (COUNT, SUM, AVG, etc.)
+        8. For filtering, use appropriate WHERE conditions
+        9. For sorting, use ORDER BY with proper column references
         
         Generate the SQL query:
         """
@@ -1055,83 +1616,88 @@ class ModernMultiModalPlatform:
             response = self.gemini_model.invoke(prompt)
             query = response.content.strip()
             
-            # Ensure query doesn't contain dangerous operations
-            dangerous_keywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'CREATE']
+            # Safety check for dangerous operations
+            forbidden_keywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'CREATE', 'TRUNCATE']
             query_upper = query.upper()
             
-            for keyword in dangerous_keywords:
+            for keyword in forbidden_keywords:
                 if keyword in query_upper:
-                    return f"SELECT * FROM data_table LIMIT 10"  # Safe fallback
+                    return "SELECT * FROM data_table LIMIT 10"
             
             return query
             
-        except Exception:
-            return f"SELECT * FROM data_table LIMIT 10"
+        except Exception as e:
+            return "SELECT * FROM data_table LIMIT 10"
 
-    def clean_sql_query(self, raw_query):
-        """Clean SQL query with robust handling"""
-        if not raw_query:
+    def clean_sql_query_robust(self, raw_query):
+        """Clean SQL query with robust validation"""
+        if not raw_query or len(raw_query.strip()) < 3:
             return "SELECT * FROM data_table LIMIT 10"
         
         cleaned = raw_query.strip()
         
-        # Remove markdown code blocks
-        if "```" in cleaned:
-            # Split by triple backticks
+        # Remove markdown formatting
+        if "```
             parts = cleaned.split("```")
             if len(parts) >= 3:
-                cleaned = parts[1]  # extract the part between triple backticks
+                cleaned = parts[1].strip()
             else:
-                cleaned = cleaned.replace("```", "")
-
-        # Remove 'sql' language identifier if it's the first word
+                cleaned = cleaned.replace("```
+        
+        # Remove language identifiers
         if cleaned.lower().startswith("sql"):
             cleaned = cleaned[3:].strip()
         
-        # Clean up line by line
+        # Process line by line
         lines = [line.strip() for line in cleaned.split('\n') if line.strip()]
         sql_lines = []
         
         for line in lines:
-            if line and not line.startswith('#') and not line.startswith('--'):
+            if line and not line.startswith('#') and not line.startswith('--') and not line.startswith('/*'):
                 sql_lines.append(line)
         
-        final_query = ' '.join(sql_lines).rstrip(';')
+        final_query = ' '.join(sql_lines).rstrip(';').strip()
         
-        # Basic validation
-        if not final_query or len(final_query.strip()) < 5:
+        # Final validation
+        if len(final_query) < 5 or not final_query.upper().startswith('SELECT'):
             return "SELECT * FROM data_table LIMIT 10"
         
         return final_query
 
     def create_csv_database(self, df):
-        """Create SQLite database from CSV with better error handling"""
+        """Create SQLite database with proper column handling and error recovery"""
         try:
-            # Clean column names for SQL compatibility
-            df_clean = df.copy()
-            df_clean.columns = [f'"{col}"' if ' ' in col or '-' in col else col for col in df.columns]
+            # Ensure database directory exists
+            os.makedirs(os.path.dirname(f"{st.session_state.db_name}.db"), exist_ok=True)
             
-            connection = sqlite3.connect("analytics_db.db")
-            df_clean.to_sql("data_table", connection, if_exists='replace', index=False)
+            connection = sqlite3.connect(f"{st.session_state.db_name}.db")
+            df.to_sql(st.session_state.table_name, connection, if_exists='replace', index=False)
             connection.close()
             return True
         except Exception as e:
-            st.error(f"Database error: {str(e)}")
+            st.error(f"❌ Database creation error: {str(e)}")
             return False
 
-    # Document Processing Methods - NOW WITH PERFECT CONTINUOUS CHAT
-    def process_documents(self, uploaded_pdfs, uploaded_docs):
-        """Process uploaded documents and create vector store"""
+    # Document Processing Methods - Enhanced with Progress Tracking
+    def process_documents(self, uploaded_pdfs, uploaded_docs, progress_bar=None, status_text=None):
+        """Process uploaded documents with enhanced progress tracking"""
         try:
             all_text = ""
             processed_files = []
+            total_files = len(uploaded_pdfs or []) + len(uploaded_docs or [])
+            current_file = 0
             
             # Process PDFs
             if uploaded_pdfs:
                 for pdf_file in uploaded_pdfs:
+                    current_file += 1
+                    if status_text:
+                        status_text.text(f"Processing PDF {current_file}/{total_files}: {pdf_file.name}")
+                    
                     try:
                         pdf_reader = PdfReader(pdf_file)
                         pdf_text = ""
+                        
                         for page_num, page in enumerate(pdf_reader.pages):
                             page_text = page.extract_text()
                             if page_text.strip():
@@ -1140,12 +1706,20 @@ class ModernMultiModalPlatform:
                         if pdf_text.strip():
                             all_text += pdf_text
                             processed_files.append(f"📄 {pdf_file.name} ({len(pdf_reader.pages)} pages)")
+                        
                     except Exception as e:
                         st.error(f"❌ Error reading {pdf_file.name}: {str(e)}")
+                    
+                    if progress_bar:
+                        progress_bar.progress(current_file / total_files)
             
             # Process Word documents
             if uploaded_docs:
                 for doc_file in uploaded_docs:
+                    current_file += 1
+                    if status_text:
+                        status_text.text(f"Processing Word document {current_file}/{total_files}: {doc_file.name}")
+                    
                     try:
                         doc = docx.Document(doc_file)
                         doc_text = ""
@@ -1166,15 +1740,23 @@ class ModernMultiModalPlatform:
                         if doc_text.strip():
                             all_text += f"\n--- {doc_file.name} ---\n{doc_text}\n"
                             processed_files.append(f"📝 {doc_file.name} ({para_count} paragraphs)")
+                        
                     except Exception as e:
                         st.error(f"❌ Error reading {doc_file.name}: {str(e)}")
+                    
+                    if progress_bar:
+                        progress_bar.progress(current_file / total_files)
             
             # Create vector store if we have text
             if all_text.strip():
+                if status_text:
+                    status_text.text("Creating AI knowledge base...")
+                
                 text_splitter = RecursiveCharacterTextSplitter(
                     chunk_size=10000,
                     chunk_overlap=1000,
-                    length_function=len
+                    length_function=len,
+                    separators=["\n\n", "\n", ". ", " ", ""]
                 )
                 text_chunks = text_splitter.split_text(all_text)
                 
@@ -1182,6 +1764,12 @@ class ModernMultiModalPlatform:
                     vector_store = FAISS.from_texts(text_chunks, self.embeddings)
                     st.session_state.document_vector_store = vector_store
                     st.session_state.processed_files = processed_files
+                    
+                    if progress_bar:
+                        progress_bar.progress(1.0)
+                    if status_text:
+                        status_text.text("✅ Processing complete!")
+                    
                     return True
             
             return False
@@ -1191,34 +1779,35 @@ class ModernMultiModalPlatform:
             return False
 
     def process_document_chat(self, question):
-        """Process document chat with enhanced responses - PERFECT CONTINUOUS CHAT"""
+        """Process document chat with enhanced analysis"""
         if not self.models_ready:
             return "❌ AI models not available for document analysis."
         
         try:
-            # Get relevant documents
-            docs = st.session_state.document_vector_store.similarity_search(question, k=4)
+            # Get relevant documents with higher k for better context
+            docs = st.session_state.document_vector_store.similarity_search(question, k=6)
             
             if not docs:
                 return "❌ No relevant information found in the documents for your question."
             
-            # Enhanced prompt template
+            # Enhanced prompt template with better instructions
             prompt_template = """
-            You are an expert document analyst. Provide a comprehensive answer based on the document context.
+            You are an expert document analyst with deep analytical skills. Analyze the provided document context and answer the question comprehensively.
             
-            Instructions:
-            - Give detailed, accurate answers based solely on the provided context
-            - Include specific quotes when relevant and cite the source
-            - If the answer is not in the context, clearly state that
-            - Structure your response with clear sections and bullet points
-            - Be thorough and provide actionable insights
+            Guidelines:
+            - Provide detailed, accurate answers based solely on the document context
+            - Include specific quotes with page/document references when available
+            - If information is partial or unclear, mention this explicitly
+            - Structure your response with clear headings and bullet points
+            - Provide actionable insights and recommendations where appropriate
+            - If the question cannot be fully answered, explain what information is missing
             
             Document Context:
             {context}
             
             Question: {question}
             
-            Comprehensive Answer:
+            Comprehensive Professional Analysis:
             """
             
             prompt = PromptTemplate(
@@ -1234,14 +1823,14 @@ class ModernMultiModalPlatform:
                 return_only_outputs=True
             )
             
-            return f"📚 **Document Analysis:**\n\n{response['output_text']}"
+            return f"📚 **Professional Document Analysis:**\n\n{response['output_text']}"
             
         except Exception as e:
-            return f"❌ Error analyzing documents: {str(e)}"
+            return f"❌ Error analyzing documents: {str(e)}. Please try rephrasing your question."
 
-    # Image Processing Methods - NOW WITH PERFECT CONTINUOUS CHAT
+    # Image Processing Methods - Enhanced with Better Analysis
     def analyze_image_perfect(self, question=""):
-        """Perfect image analysis with enhanced prompts - PERFECT CONTINUOUS CHAT"""
+        """Enhanced image analysis with comprehensive prompts"""
         if st.session_state.current_image is None:
             return "❌ No image uploaded. Please upload an image first."
         
@@ -1253,71 +1842,94 @@ class ModernMultiModalPlatform:
             
             if question:
                 prompt = f"""
-                You are an expert computer vision analyst. Analyze this image carefully and answer: {question}
+                You are an expert computer vision analyst with advanced image processing capabilities. 
+                Analyze this image carefully and answer the specific question: {question}
                 
-                Provide a comprehensive response including:
-                - Direct and specific answer to the question
-                - Detailed visual observations supporting your answer
-                - Any text content visible in the image (OCR)
-                - Contextual information and background details
-                - Professional insights and technical observations
+                Provide a comprehensive response that includes:
+                1. **Direct Answer**: Clear, specific response to the question
+                2. **Visual Evidence**: Detailed observations supporting your answer
+                3. **Text Content (OCR)**: All visible text, signs, labels, or writing
+                4. **Context & Background**: Environmental and situational details
+                5. **Technical Insights**: Professional observations about image quality, lighting, composition
+                6. **Additional Details**: Any relevant information that adds value to the analysis
                 
-                Be thorough, accurate, and provide actionable information.
+                Be thorough, accurate, and provide actionable information. Use professional language and organize your response clearly.
                 """
             else:
                 prompt = """
-                You are an expert computer vision analyst. Provide a comprehensive analysis of this image.
+                You are an expert computer vision analyst. Provide a comprehensive, professional analysis of this image.
                 
-                Structure your analysis as follows:
+                **Structure your analysis as follows:**
                 
-                **🎯 Main Subject & Focus:**
-                - Primary subject or focal point
-                - Overall scene composition
+                **🎯 Primary Subject & Composition:**
+                - Main focal point and overall scene description
+                - Composition elements and visual hierarchy
                 
                 **👥 People & Objects:**
-                - Detailed description of people, objects, and their relationships
-                - Actions or activities taking place
+                - Detailed description of all visible people, objects, and their interactions
+                - Actions, activities, or events taking place
                 
-                **📝 Text Content (OCR):**
-                - All visible text, signs, labels, or writing
-                - Document content if applicable
+                **📝 Text Content & Information (OCR):**
+                - All visible text, including signs, labels, documents, handwriting
+                - Numbers, codes, dates, or other readable information
                 
-                **🎨 Visual Elements:**
-                - Colors, lighting, and photographic style
-                - Composition and artistic elements
+                **🎨 Visual & Artistic Elements:**
+                - Color palette, lighting conditions, and photographic style
+                - Composition techniques, perspective, and artistic quality
                 
-                **📍 Setting & Context:**
-                - Location, environment, and time context
-                - Background and surroundings
+                **📍 Setting & Environmental Context:**
+                - Location type, environment, and spatial context
+                - Time indicators (day/night, season, era if discernible)
+                - Background elements and surroundings
                 
-                **🔍 Notable Details:**
-                - Interesting, important, or unusual observations
-                - Technical or safety considerations if relevant
+                **🔍 Notable Details & Technical Observations:**
+                - Interesting, important, or unusual elements worth highlighting
+                - Image quality, resolution, and technical aspects
+                - Safety considerations, hazards, or concerns if applicable
+                - Professional insights or specialized observations
                 
-                Be comprehensive, accurate, and professional in your analysis.
+                **💡 Summary & Key Insights:**
+                - Main takeaways and significant findings
+                - Potential uses or applications of this image
+                - Any recommendations or suggestions based on the analysis
+                
+                Be comprehensive, accurate, professional, and provide actionable insights throughout your analysis.
                 """
             
             response = self.gemini_vision.generate_content([prompt, image])
-            return f"🖼️ **Expert Image Analysis:**\n\n{response.text}"
+            return f"🖼️ **Expert Computer Vision Analysis:**\n\n{response.text}"
             
         except Exception as e:
-            return f"❌ Error analyzing image: {str(e)}"
+            return f"❌ Error analyzing image: {str(e)}. Please try uploading the image again or check your connection."
 
     def logout_user(self):
-        """Enhanced logout with confirmation"""
+        """Enhanced logout with user confirmation and cleanup"""
         # Store current username for goodbye message
         username = st.session_state.get('username', 'User')
+        user_info = self.auth_manager.get_user_info(username)
+        
+        # Show logout confirmation
+        st.success(f"👋 Thank you for using Elite AI Platform, {user_info.get('full_name', username)}!")
+        
+        # Display session summary
+        if user_info:
+            st.info(f"""
+            **Session Summary:**
+            - CSV Queries: {user_info.get('csv_queries', 0)}
+            - Document Queries: {user_info.get('document_queries', 0)}  
+            - Image Queries: {user_info.get('image_queries', 0)}
+            - Total Logins: {user_info.get('login_count', 0)}
+            """)
         
         # Clear all session state
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         
-        st.success(f"👋 Thank you for using Elite AI Platform, {username}! Successfully logged out.")
-        time.sleep(2)
+        time.sleep(3)
         st.rerun()
 
     def run(self):
-        """Main application runner with error handling"""
+        """Main application runner with comprehensive error handling"""
         try:
             if not st.session_state.authenticated:
                 self.render_modern_landing_page()
@@ -1325,27 +1937,56 @@ class ModernMultiModalPlatform:
                 self.render_modern_dashboard()
         except Exception as e:
             st.error(f"❌ Application Error: {str(e)}")
-            st.info("Please refresh the page and try again. If the issue persists, check your API keys.")
+            st.info("Please refresh the page and try again. If the issue persists, check your API keys and internet connection.")
+            
+            # Show debug information in development
+            if st.checkbox("Show Debug Information"):
+                st.code(f"""
+                Error Details:
+                {str(e)}
+                
+                Session State Keys: {list(st.session_state.keys())}
+                Models Ready: {getattr(self, 'models_ready', 'Unknown')}
+                """)
 
-# Run Application
+# Application Entry Point
 if __name__ == "__main__":
     try:
+        # Initialize and run the application
         app = ModernMultiModalPlatform()
         app.run()
     except Exception as e:
         st.error(f"❌ Critical Application Error: {str(e)}")
         st.info("Please check your environment setup and API keys.")
         
-        # Debug information
-        with st.expander("🔧 Debug Information"):
-            st.code("""
-            Required Environment Variables:
+        # Comprehensive debug information
+        with st.expander("🔧 Complete Setup Guide"):
+            st.markdown("""
+            ## Required Environment Variables
+            ```
             GOOGLE_API_KEY=your_google_api_key_here
+            ```
             
-            Required Dependencies:
-            pip install streamlit pandas pillow PyPDF2 google-generativeai python-docx 
-            pip install langchain langchain-google-genai langchain-community faiss-cpu 
-            pip install python-dotenv plotly nest-asyncio
+            ## Required Dependencies
+            ```bash
+            pip install streamlit==1.28.1
+            pip install pandas==2.0.3
+            pip install pillow==10.0.1
+            pip install PyPDF2==3.0.1
+            pip install google-generativeai==0.3.2
+            pip install python-docx==0.8.11
+            pip install langchain==0.0.350
+            pip install langchain-google-genai==0.0.6
+            pip install langchain-community==0.0.10
+            pip install faiss-cpu==1.7.4
+            pip install python-dotenv==1.0.0
+            pip install plotly==5.17.0
+            pip install nest-asyncio==1.5.8
+            ```
+            
+            ## Setup Instructions
+            1. Create a `.env` file with your Google API key
+            2. For Streamlit Cloud, add the API key to secrets
+            3. Install all dependencies
+            4. Run with: `streamlit run app.py`
             """)
-
-
