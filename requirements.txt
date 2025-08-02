@@ -17,6 +17,9 @@ langchain_google_genai
 # Core app
 streamlit
 python-dotenv
+langchain 
+langchain-community
+
 
 # File handling
 Pillow
@@ -33,3 +36,4 @@ langchain-community
 faiss-cpu
 
 mammoth
+
