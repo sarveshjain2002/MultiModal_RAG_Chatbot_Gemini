@@ -34,47 +34,72 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Configure Google AI with improved secret handling
-try:
-    # Try Streamlit secrets first, then environment variables
-    if "GOOGLE_API_KEY" in st.secrets:
-        api_key = st.secrets["GOOGLE_API_KEY"]
-    else:
-        api_key = os.getenv("GOOGLE_API_KEY")
-    
-    if not api_key:
-        raise Exception("Google API Key not found in secrets or environment variables")
-    
-    genai.configure(api_key=api_key)
-    print("✅ Google AI configured successfully!")
-except Exception as e:
-    st.error(f"❌ Google AI configuration error: {str(e)}")
+# Configure Google AI with your exact format handling
+def configure_google_ai():
+    """Configure Google AI with robust key handling"""
+    try:
+        api_key = None
+        
+        # Method 1: Try Streamlit secrets (your format: GOOGLE_API_KEY ="HERE IS API KEY")
+        try:
+            if hasattr(st, 'secrets') and "GOOGLE_API_KEY" in st.secrets:
+                api_key = st.secrets["GOOGLE_API_KEY"].strip()
+                if api_key and len(api_key) > 10:
+                    print("✅ API key loaded from Streamlit secrets")
+        except Exception as e:
+            print(f"Secrets error: {str(e)}")
+        
+        # Method 2: Try environment variables
+        if not api_key:
+            try:
+                env_key = os.getenv("GOOGLE_API_KEY")
+                if env_key and len(env_key.strip()) > 10:
+                    api_key = env_key.strip()
+                    print("✅ API key loaded from environment")
+            except Exception as e:
+                print(f"Environment error: {str(e)}")
+        
+        # Validate and configure
+        if not api_key:
+            raise Exception("Google API Key not found. Please add GOOGLE_API_KEY to Streamlit secrets.")
+        
+        # Clean the API key (remove any extra quotes or spaces)
+        api_key = api_key.strip().strip('"').strip("'")
+        
+        if len(api_key) < 20:
+            raise Exception("Invalid Google API Key format. Key seems too short.")
+        
+        genai.configure(api_key=api_key)
+        return api_key, True, "Google AI configured successfully!"
+        
+    except Exception as e:
+        error_msg = f"Google AI configuration error: {str(e)}"
+        print(error_msg)
+        st.error(f"❌ {error_msg}")
+        return None, False, error_msg
+
+# Configure Google AI on startup
+API_KEY, AI_CONFIGURED, CONFIG_MESSAGE = configure_google_ai()
 
 # Global AI Models - Initialize once and reuse
 @st.cache_resource
 def get_ai_models():
-    """Initialize and cache AI models with robust secret handling"""
+    """Initialize and cache AI models"""
     try:
-        # Get API key from Streamlit secrets with fallback to environment
-        if "GOOGLE_API_KEY" in st.secrets:
-            api_key = st.secrets["GOOGLE_API_KEY"]
-        else:
-            api_key = os.getenv("GOOGLE_API_KEY")
-        
-        if not api_key:
-            raise Exception("Google API Key not found")
+        if not AI_CONFIGURED or not API_KEY:
+            raise Exception("Google AI not properly configured")
         
         gemini_model = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             temperature=0.3,
-            google_api_key=api_key
+            google_api_key=API_KEY
         )
         
         gemini_vision = genai.GenerativeModel('gemini-2.0-flash')
         
         embeddings = GoogleGenerativeAIEmbeddings(
             model="models/embedding-001",
-            google_api_key=api_key
+            google_api_key=API_KEY
         )
         
         return gemini_model, gemini_vision, embeddings, True
@@ -1637,13 +1662,12 @@ class ModernMultiModalPlatform:
         cleaned = raw_query.strip()
         
         # Remove markdown formatting
-        if "```" in cleaned:
-            # Split by triple backticks
+        if "```
             parts = cleaned.split("```")
             if len(parts) >= 3:
-                cleaned = parts[1]  # extract the part between triple backticks
+                cleaned = parts[1].strip()
             else:
-                cleaned = cleaned.replace("```", "")
+                cleaned = cleaned.replace("```
         
         # Remove language identifiers
         if cleaned.lower().startswith("sql"):
@@ -1948,6 +1972,7 @@ class ModernMultiModalPlatform:
                 
                 Session State Keys: {list(st.session_state.keys())}
                 Models Ready: {getattr(self, 'models_ready', 'Unknown')}
+                API Configured: {AI_CONFIGURED}
                 """)
 
 # Application Entry Point
@@ -1963,32 +1988,61 @@ if __name__ == "__main__":
         # Comprehensive debug information
         with st.expander("🔧 Complete Setup Guide"):
             st.markdown("""
-            ## Required Environment Variables
+            ## 🔑 Environment Setup
+            
+            ### For Streamlit Cloud:
+            **Add this to your Advanced Settings → Secrets:**
+            ```
+            GOOGLE_API_KEY = "your_google_api_key_here"
+            ```
+            
+            ### For Local Development:
+            **Create `.env` file:**
             ```
             GOOGLE_API_KEY=your_google_api_key_here
             ```
             
-            ## Required Dependencies
-            ```bash
-            pip install streamlit==1.28.1
-            pip install pandas==2.0.3
-            pip install pillow==10.0.1
-            pip install PyPDF2==3.0.1
-            pip install google-generativeai==0.3.2
-            pip install python-docx==0.8.11
-            pip install langchain==0.0.350
-            pip install langchain-google-genai==0.0.6
-            pip install langchain-community==0.0.10
-            pip install faiss-cpu==1.7.4
-            pip install python-dotenv==1.0.0
-            pip install plotly==5.17.0
-            pip install nest-asyncio==1.5.8
+            ## 📦 Required Dependencies (requirements.txt)
+            ```
+            streamlit==1.28.1
+            pandas==2.0.3
+            pillow==10.0.1
+            PyPDF2==3.0.1
+            google-generativeai==0.3.2
+            python-docx==0.8.11
+            langchain==0.0.350
+            langchain-google-genai==0.0.6
+            langchain-community==0.0.10
+            faiss-cpu==1.7.4
+            python-dotenv==1.0.0
+            plotly==5.17.0
+            nest-asyncio==1.5.8
             ```
             
-            ## Setup Instructions
-            1. Create a `.env` file with your Google API key
-            2. For Streamlit Cloud, add the API key to secrets
-            3. Install all dependencies
-            4. Run with: `streamlit run app.py`
-            """)
+            ## ⚙️ Streamlit Config (.streamlit/config.toml)
+            ```
+            [server]
+            headless = true
+            enableCORS = false
+            port = $PORT
 
+            [theme]
+            backgroundColor = "#000000"
+            secondaryBackgroundColor = "#111111"
+            textColor = "#ffffff"
+            primaryColor = "#4f46e5"
+
+            [browser]
+            gatherUsageStats = false
+            ```
+            
+            ## 🚀 Deployment Steps
+            1. **Create your repository** with the above files
+            2. **Add API key** to Streamlit Cloud secrets
+            3. **Deploy** through Streamlit Cloud dashboard
+            4. **Wait 2-3 minutes** for initial deployment
+            
+            ## 🔍 Debug Information
+            - **AI Configuration Status**: {AI_CONFIGURED}
+            - **Config Message**: {CONFIG_MESSAGE}
+            """)
