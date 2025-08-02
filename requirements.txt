@@ -1,40 +1,13 @@
-fastapi
-requests
-uvicorn
-sentencepiece
-torch
-transformers
-streamlit
-streamlit
-google-generativeai
-python-dotenv
-langchain
-PyPDF2
-chromadb
-faiss-cpu
-langchain_google_genai
-langchain-google-genai
-# Core app
-streamlit
-python-dotenv
-langchain 
-langchain-community
-
-
-# File handling
-Pillow
-PyPDF2
-python-docx
-
-# Google Gemini + LangChain
-google-generativeai
-langchain
-langchain-google-genai
-langchain-community
-
-# Vector store
-faiss-cpu
-
-mammoth
-
-
+streamlit>=1.28.0,<2.0.0
+pandas>=2.0.0,<3.0.0
+pillow>=10.0.0,<11.0.0
+PyPDF2>=3.0.0,<4.0.0
+google-generativeai>=0.3.0,<1.0.0
+python-docx>=0.8.0,<2.0.0
+langchain>=0.0.300,<1.0.0
+langchain-google-genai>=0.0.5,<1.0.0
+langchain-community>=0.0.10,<1.0.0
+faiss-cpu>=1.7.0,<2.0.0
+python-dotenv>=1.0.0,<2.0.0
+plotly>=5.15.0,<6.0.0
+nest-asyncio>=1.5.0,<2.0.0
